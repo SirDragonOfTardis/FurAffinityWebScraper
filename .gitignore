@@ -241,6 +241,8 @@ FakesAssemblies/
 **/*.Server/GeneratedArtifacts
 **/*.Server/ModelManifest.xml
 _Pvt_Extensions
+*.pyproj
+*.sln
 
 # Paket dependency manager
 .paket/paket.exe
@@ -265,3 +267,5 @@ scraper.cache
 guide.txt
 cookies.json
 images/
+/cookie.json
+fa_scraper.db
