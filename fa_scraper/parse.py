@@ -88,8 +88,10 @@ class Parser(object):
         #        urls = urls + temp_urls
 
         temp_urls = self.bs.findAll('figure')
-        nextpage = self.bs.findAll('a', {"class": "more"}, limit=1)
-        nextpagealt = self.bs.findAll('a', {"class": "more-half"}, limit=1)
+        new_submissions_nextpage = self.bs.findAll('a', {"class": "more"}, limit=1)
+        new_submissions_nextpagealt = self.bs.findAll('a', {"class": "more-half"}, limit=1)
+        gallery_nextpagealt = self.bs.findAll('a', {"class": "button-link right"}, limit=1)
+        gallery_user_folders = self.bs.findAll('ul', {"class": "default-group"})
         if temp_urls:
             temp_urls = list(map(lambda tag: tag.get('id'), temp_urls))
             url_count = url_count + len(temp_urls)
@@ -98,12 +100,12 @@ class Parser(object):
                 temp_urls[i] = "/view/%s/" %(temp_urls[i])
         
             urls = urls + temp_urls
-        if nextpage:
-            nextpage_urls = list(map(lambda tag: tag.get('href'), nextpage))
+        if new_submissions_nextpage:
+            nextpage_urls = list(map(lambda tag: tag.get('href'), new_submissions_nextpage))
             url_count = url_count + len(nextpage_urls)
             urls = urls + nextpage_urls
-        if nextpagealt:
-            nextpagealt_urls = list(map(lambda tag: tag.get('href'), nextpagealt))
+        if new_submissions_nextpagealt:
+            nextpagealt_urls = list(map(lambda tag: tag.get('href'), new_submissions_nextpagealt))
             url_count = url_count + len(nextpagealt_urls)
             urls = urls + nextpagealt_urls
 
@@ -261,9 +263,10 @@ website.
         self.posted_title = self.get_posted_title(self.posted_titlename)
         logger.debug('Title = %s' % self.posted_title)
         # for checking the description
-        desc_table = self.bs.find('table', {'class': 'maintable'})
-        desc = desc_table.find('td', {'class': 'alt1'})
-        desc = str(desc)
+        desc_table = self.bs.findAll('table', {'class': 'maintable'})[1]
+        desc_row = desc_table.findAll('tr')[2]
+        #desc = desc_table.find('td', {'class': 'alt1'})
+        desc = str(desc_row)
         if DESCRIPTION_KEYWORDS:
             for keyword in DESCRIPTION_KEYWORDS:
                 if keyword.lower() in self.category.lower():
@@ -306,11 +309,18 @@ website.
         """
         returns the table containing tags and description
         """
-        desc_table = self.bs.find('table', {'class': 'maintable'})
+        desc_table = self.bs.findAll('table', {'class': 'maintable'})[1]
         desc = str(desc_table)
         desc = unicodedata.normalize('NFKD', desc)
         desc = (desc.encode('ascii','ignore')).decode('utf-8')
-        data = '<html><body>' + desc + '</body></html>'
+        style = """
+                <link type="text/css" rel="stylesheet" href="../../../css/dark.css" />
+                <link type="text/css" rel="stylesheet" href="../../css/dark.css" />
+                <link type="text/css" rel="stylesheet" href="../css/dark.css" />
+                <link type="text/css" rel="stylesheet" href="http://www.furaffinity.net/themes/classic/css/dark.css" />
+                """
+
+        data = '<html><body>' + style + desc + '</body></html>'
          
         try:
             with open('images/' + filename + ' Description.html', 'wb') as description:
