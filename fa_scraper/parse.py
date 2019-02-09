@@ -190,14 +190,11 @@ website.
         Args:
             self - instance of class ArtworkParser
         """
-        
-        self.posted_titlename = self.bs.find('meta', {'property': 'og:title'}) #iureka
         self.stats_tag = self.bs.find('td', {'class': 'alt1 stats-container'})
         self.cat_tag = self.bs.find('td', {'class': 'cat'})
         if self.stats_tag:
             self.keywords_tag = self.stats_tag.find('div', {'id': 'keywords'})
-            self.posted_tag = self.stats_tag.find('span', {'class': 'popup_date'}).string  #get info from meta name="twitter:data1" instead
-            # self.posted_tag = self.bs.find('meta', {'name': 'twitter:data1'}) #iureka
+            self.posted_tag = self.stats_tag.find('span', {'class': 'popup_date'}).string
             logger.debug(self.posted_tag)
             self.rating_tag = self.stats_tag.find('div', {'align': 'left'})
             self.rating_tag = self.rating_tag.find('img') if self.rating_tag else None
@@ -259,8 +256,7 @@ website.
         self.category = self.bs.find('b', text='Category:').next_sibling
         logger.debug('Category found = %s' % self.category)
         # for getting title of submission
-        self.posted_titlename = self.bs.find('meta', {'property': 'og:title'})
-        self.posted_title = self.get_posted_title(self.posted_titlename)
+        self.posted_title = self.get_posted_title(self)
         logger.debug('Title = %s' % self.posted_title)
         # for checking the description
         desc_table = self.bs.findAll('table', {'class': 'maintable'})[1]
@@ -296,9 +292,7 @@ website.
         self.stats_tag = self.bs.find('td', {'class': 'alt1 stats-container'})
         self.posted_time = self.stats_tag.find('span', {'class': 'popup_date'}).string
         logger.debug(self.posted_time)
-        self.posted_titlename = self.bs.find('meta', {'property': 'og:title'}) #iureka
-        #self.posted_tag = self.bs.find('meta', {'name': 'twitter:data1'}) #iureka
-        self.posted_title = self.get_posted_title(self.posted_titlename)
+        self.posted_title = self.get_posted_title(self)
         self.posted_time = util.parse_datetime(self.posted_time)
         self.posted_time = self.posted_time.strftime("%Y-%m-%d_%H-%M")
         filename = "%s %s" %(self.posted_time,self.posted_title)
@@ -333,6 +327,10 @@ website.
         return desc
 
     def get_foldername(self):
+        """
+        Get the foldername that the submission is going to be saved to.
+        Artist Name, Date, Year,
+        """
         foldername = ""
         return foldername
 
@@ -360,10 +358,12 @@ website.
             return posted_time['title']
 
     @staticmethod
-    def get_posted_title(posted_title):
+    def get_posted_title(self):
         # get posted time from posted_tag
-        if posted_title.has_attr('content'):
-            return posted_title['content']
+        # returns "title by artist"
+        self.posted_titlename = self.bs.find('meta', {'property': 'og:title'})
+        if self.posted_titlename.has_attr('content'):
+            return self.posted_titlename['content']
 
     @staticmethod
     def combine_keywords(keywords):
