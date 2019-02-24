@@ -59,7 +59,7 @@ class Scraper(object):
     def get_scrapying_url(self):
         # get next url to be scrapied from instance's scrapying queue
         try:
-            return self.scrapying_queue.popleft()
+            return self.scrapying_queue.pop()
         except IndexError:
             # if scrapying queue is empty, then program should exit directly
             logger.fatal('scrapying queue empty.')
@@ -87,6 +87,8 @@ class Scraper(object):
         # set sleep interval between two requests
         self.scrapy_interval = scrapy_interval
         logger.info('set scrapy interval to %d' % scrapy_interval)
+
+        self.sub_folders = sub_folders
 
         # set cookies if provided
         self.cookies = cookies
@@ -120,7 +122,7 @@ class Scraper(object):
             
             main_html = self.open_url(url)
             if main_html:
-                parser = parse.Parser(main_html)
+                parser = parse.Parser(main_html, url)
                 sites = parser.get_all_urls()
                 self.add_unscrapied_urls(sites)
                 logger.debug('begin url %s scrapied.' % url)
@@ -151,7 +153,7 @@ class Scraper(object):
             logger.info('scrapied "%s" site with url %s.' % (url_type, url))
 
             # initalize parser according to url type
-            parser = parse.ArtworkParser(html) if url_type == 'view' else parse.Parser(html)
+            parser = parse.ArtworkParser(html, url) if url_type == 'view' else parse.Parser(html, url)
 
             # retrieve urls and add them to instance's scrapying queue
             urls = parser.get_all_urls()
@@ -164,6 +166,12 @@ class Scraper(object):
 				# clean filename
                 
                 filename_new = parser.get_filename()
+
+                subfolder_setting = self.sub_folders
+                if not subfolder_setting is 'none':
+                    logger.debug("using subfolder")
+                    subdir = self.create_sub_directory_and_return_string(parser, subfolder_setting)
+                    filename_new = subdir + '/' + filename_new
 
                 download_link = parser.get_download_link()
                 # TODO: filter will be added here
@@ -215,6 +223,24 @@ class Scraper(object):
             return attributes
         else:
             logger.info('failed to scrapy expired url %s.' % url)
+            
+    def create_sub_directory_and_return_string(self, parser, subfolder_setting):
+        """
+        Checks args for setting up subdirectory and return dir as string.
+        """
+        logger.debug("it may have done something")
+        errorstr = 'error/'
+        if subfolder_setting == 'user':
+            x = parser.get_artist()
+            logger.debug("the value of x is " + x)
+            util.create_sub_directory(x)
+            return x
+        elif subfolder_setting == 'artist':
+            x = parser.get_artist()
+            util.create_sub_directory(x)
+            return x
+        else:
+            return errorstr
 
     @staticmethod
     def get_artwork_id(url):

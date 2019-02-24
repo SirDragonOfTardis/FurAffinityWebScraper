@@ -95,6 +95,17 @@ def parse_arguments():
         choices = ['debug', 'info', 'warning', 'error', 'fatal'],
         help = 'sets verbosity level for console log messages, default: info'
     )
+    
+    # sub-folders - options will be 'none', 'artist', 'user'
+    # future options year, year and month,
+    # default is 'none'
+    argparser.add_argument(
+        '--sub-folders',
+        nargs = 1,
+        default = ['none'],
+        choices = ['none', 'artist', 'user'],
+        help = 'specifies if and how you want subfolders set'
+    )
 
     arguments = argparser.parse_args()
     return arguments
@@ -193,6 +204,9 @@ if __name__ == '__main__':
     # create images sub-directory if not exists
     if not util.create_images_directory():
         exit(-1)
+    
+    # configure subfolder
+    scrapy.sub_folders = arguments.sub_folders[0]
 
     # set signal handler
     signal.signal(signal.SIGINT, signal_handler)

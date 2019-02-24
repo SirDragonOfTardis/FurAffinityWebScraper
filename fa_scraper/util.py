@@ -52,12 +52,52 @@ def create_images_directory():
         return True
     return True
 
-def combine_filename(artwork_id, filename_extension):
+def if_sub_directory_exists(sub_directory):
+    """
+    Checks if sub-directory exists.
+
+    Args:
+        None
+
+    Returns:
+        A boolean indicates whether sub_directory exists in current working
+    directory.
+    """
+    if os.path.exists(sub_directory):
+        if os.path.isdir(sub_directory):
+            logger.debug(sub_directory + ' directory exists.')
+            return True
+    return False
+
+def create_sub_directory(sub_directory):
+    """
+    Create sub-directory if not exists.
+
+    Args:
+        None
+
+    Returns:
+        False if there exists a FILE named 'images/*', which means cannot create a
+    directory named 'images/*'.
+        True if successfully create 'images/*' directory or there exists a directory
+    named 'images/*'.
+    """
+    sub_directory = "images/" + sub_directory
+    if not if_sub_directory_exists(sub_directory):
+        if os.path.isfile(sub_directory):
+            logger.fatal('exists file named "images/' + sub_directory + '".')
+            return False
+        os.mkdir(sub_directory)
+        logger.info('directory "images/'+sub_directory+'" created.')
+        return True
+    return True
+
+def combine_filename(filename_new, filename_extension):
     # artwork_id here is a str
     if filename_extension:
-        return artwork_id + '.' + filename_extension
+        return filename_new + '.' + filename_extension
     else:
-        return artwork_id
+        return filename_new
 
 def parse_datetime(date):
     return parse(date)

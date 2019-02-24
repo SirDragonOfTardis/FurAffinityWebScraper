@@ -53,7 +53,7 @@ class Parser(object):
         logger.warning('unknown url type from url: %s.' % url)
         return 'unknown'
 
-    def __init__(self, html):
+    def __init__(self, html, url):
         # lazy load, trying to generate compiled regex table when the first
         # instance initialized.
         if not Parser.URL_REGEX_TABLE:
@@ -61,6 +61,7 @@ class Parser(object):
 
         # initialize bs object for parsing
         self.bs = BeautifulSoup(html, "html.parser")
+        self.url = url
 
         logger.debug('parser initialized.')
 
@@ -92,22 +93,42 @@ class Parser(object):
         new_submissions_nextpagealt = self.bs.findAll('a', {"class": "more-half"}, limit=1)
         gallery_nextpagealt = self.bs.findAll('a', {"class": "button-link right"}, limit=1)
         gallery_user_folders = self.bs.findAll('ul', {"class": "default-group"})
+
+        #adds user gallery and scraps from a watch list
+        if '/watchlist/' in self.url:
+            temp_users = self.bs.findAll('a')
+            temp_users_list = list(map(lambda tag: tag.get('href'), temp_users))
+            # add all main galleries and scraps
+            url_count = url_count + len(temp_users)*2
+            temp_user_urls = []
+            for i in range(len(temp_users_list)):
+                temp_users_list[i] = temp_users_list[i].replace('/user/','')
+                temp_user_urls.append("/gallery/%s" %(temp_users_list[i]))
+                logger.debug("/gallery/%s added to urls" %(temp_users_list[i]))
+                temp_user_urls.append("/scraps/%s" %(temp_users_list[i]))
+                logger.debug("/scraps/%s added to urls" %(temp_users_list[i]))
+            urls = temp_user_urls + urls
+
+         #adds next page url
+        if new_submissions_nextpage:
+            nextpage_urls = list(map(lambda tag: tag.get('href'), new_submissions_nextpage))
+            url_count = url_count + len(nextpage_urls)
+            urls = nextpage_urls + urls
+        if new_submissions_nextpagealt:
+            nextpagealt_urls = list(map(lambda tag: tag.get('href'), new_submissions_nextpagealt))
+            url_count = url_count + len(nextpagealt_urls)
+            urls = urls + nextpagealt_urls 
+
+        #adds view urls
         if temp_urls:
             temp_urls = list(map(lambda tag: tag.get('id'), temp_urls))
             url_count = url_count + len(temp_urls)
             for i in range(len(temp_urls)):
-                temp_urls[i] = temp_urls[i].strip('sid-')
+                temp_urls[i] = temp_urls[i].replace('sid-','')
                 temp_urls[i] = "/view/%s/" %(temp_urls[i])
-        
             urls = urls + temp_urls
-        if new_submissions_nextpage:
-            nextpage_urls = list(map(lambda tag: tag.get('href'), new_submissions_nextpage))
-            url_count = url_count + len(nextpage_urls)
-            urls = urls + nextpage_urls
-        if new_submissions_nextpagealt:
-            nextpagealt_urls = list(map(lambda tag: tag.get('href'), new_submissions_nextpagealt))
-            url_count = url_count + len(nextpagealt_urls)
-            urls = urls + nextpagealt_urls
+        
+        # todo reverse urls
 
         logger.info("retrieved %u available urls." % url_count)
 
@@ -208,7 +229,7 @@ website.
                          'tag to None.')
         logger.debug('parsed tags used to retrieve artwork attribute.')
 
-    def __init__(self, html):
+    def __init__(self, html, url):
         # lazy load similar to Parser, will compile regex for only once
         if not ArtworkParser.REGEX_TABLE:
             ArtworkParser.generate_regex_table()
@@ -216,7 +237,7 @@ website.
             ArtworkParser.generate_tag_table()
 
         # call super class's init method
-        super(ArtworkParser, self).__init__(html)
+        super(ArtworkParser, self).__init__(html, url)
         # parse tags
         self.parse_tags()
 
@@ -256,7 +277,7 @@ website.
         self.category = self.bs.find('b', text='Category:').next_sibling
         logger.debug('Category found = %s' % self.category)
         # for getting title of submission
-        self.posted_title = self.get_posted_title(self)
+        self.posted_title = self.get_posted_title()
         logger.debug('Title = %s' % self.posted_title)
         # for checking the description
         desc_table = self.bs.findAll('table', {'class': 'maintable'})[1]
@@ -274,10 +295,8 @@ website.
                 elif keyword.lower() in desc.lower():
                     logger.debug('Matched %s in description' % keyword)
                     return True
-                else:
-                    logger.debug('Found no match for description needed.')
-                    return False
         else:
+            logger.debug('Found no match for description needed.')
             return False
     def get_alt_download_link(self):
         """
@@ -292,7 +311,7 @@ website.
         self.stats_tag = self.bs.find('td', {'class': 'alt1 stats-container'})
         self.posted_time = self.stats_tag.find('span', {'class': 'popup_date'}).string
         logger.debug(self.posted_time)
-        self.posted_title = self.get_posted_title(self)
+        self.posted_title = self.get_posted_title()
         self.posted_time = util.parse_datetime(self.posted_time)
         self.posted_time = self.posted_time.strftime("%Y-%m-%d_%H-%M")
         filename = "%s %s" %(self.posted_time,self.posted_title)
@@ -326,14 +345,6 @@ website.
             return False
         return desc
 
-    def get_foldername(self):
-        """
-        Get the foldername that the submission is going to be saved to.
-        Artist Name, Date, Year,
-        """
-        foldername = ""
-        return foldername
-
     @staticmethod
     def get_matched_string(tag, regex):
         # use findall to get all matched string from tag and regex
@@ -357,7 +368,7 @@ website.
         if posted_time.has_attr('title'):
             return posted_time['title']
 
-    @staticmethod
+
     def get_posted_title(self):
         # get posted time from posted_tag
         # returns "title by artist"
@@ -380,6 +391,18 @@ website.
             return 'unparsed attributes: ' + reduce(lambda x, y : x + ' ' + y, unparsed_attributes) + '.'
         else:
             return 'all attributes parsed.'
+
+    
+    def get_artist(self):
+        self.posted_titlename = self.bs.find('meta', {'property': 'og:title'})
+        if self.posted_titlename.has_attr('content'):
+            if self.posted_titlename['content']:
+                self.x = self.posted_titlename['content']
+                self.x = self.x.split(' by ')
+                self.artist = self.x[len(self.x)-1] 
+            return self.artist
+        else:
+            return 'error occured'
 
     @staticmethod
     def get_adult(rating_tag):
