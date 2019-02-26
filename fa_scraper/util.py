@@ -82,12 +82,13 @@ def create_sub_directory(sub_directory):
         True if successfully create 'images/*' directory or there exists a directory
     named 'images/*'.
     """
+
     sub_directory = "images/" + sub_directory
     if not if_sub_directory_exists(sub_directory):
         if os.path.isfile(sub_directory):
             logger.fatal('exists file named "images/' + sub_directory + '".')
             return False
-        os.mkdir(sub_directory)
+        os.makedirs(sub_directory)
         logger.info('directory "images/'+sub_directory+'" created.')
         return True
     return True

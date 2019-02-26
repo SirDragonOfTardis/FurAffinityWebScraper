@@ -169,7 +169,6 @@ class Scraper(object):
 
                 subfolder_setting = self.sub_folders
                 if not subfolder_setting is 'none':
-                    logger.debug("using subfolder")
                     subdir = self.create_sub_directory_and_return_string(parser, subfolder_setting)
                     filename_new = subdir + '/' + filename_new
 
@@ -228,19 +227,16 @@ class Scraper(object):
         """
         Checks args for setting up subdirectory and return dir as string.
         """
-        logger.debug("it may have done something")
-        errorstr = 'error/'
-        if subfolder_setting == 'user':
-            x = parser.get_artist()
-            logger.debug("the value of x is " + x)
-            util.create_sub_directory(x)
-            return x
-        elif subfolder_setting == 'artist':
-            x = parser.get_artist()
-            util.create_sub_directory(x)
-            return x
-        else:
-            return errorstr
+        artist = parser.get_artist() 
+        posted_time = parser.stats_tag.find('span', {'class': 'popup_date'}).string
+        posted_time = util.parse_datetime(posted_time)
+        subdir = subfolder_setting
+        if '{artist}' in subfolder_setting:
+            subdir = subdir.replace('{artist}',artist)
+        subdir = posted_time.strftime(subdir)
+        logger.debug('Saving in ' + subdir)
+        util.create_sub_directory(subdir)
+        return subdir
 
     @staticmethod
     def get_artwork_id(url):

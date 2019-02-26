@@ -9,3 +9,4 @@ python-dateutil>=2.6.1
 requests>=2.18.4
 six>=1.11.0
 urllib3>=1.22
+unicodedata2>=11.0.0

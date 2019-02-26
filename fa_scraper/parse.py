@@ -62,6 +62,8 @@ class Parser(object):
         # initialize bs object for parsing
         self.bs = BeautifulSoup(html, "html.parser")
         self.url = url
+        
+        self.resume_on_user = resume_on_user
 
         logger.debug('parser initialized.')
 
@@ -98,8 +100,22 @@ class Parser(object):
         if '/watchlist/' in self.url:
             temp_users = self.bs.findAll('a')
             temp_users_list = list(map(lambda tag: tag.get('href'), temp_users))
-            # add all main galleries and scraps
-            url_count = url_count + len(temp_users)*2
+
+            # starts list from specified user
+            if not self.resume_on_user == '':
+                user_to_check = '/user/' + self.resume_on_user + '/'
+                if temp_users_list.index(user_to_check):
+                    temp_resume = temp_users_list
+                    temp_resume_index = temp_users_list.index(user_to_check)
+                    r = 0
+                    while r < temp_resume_index:
+                        temp_resume.pop(0)
+                        r = r+1
+                    temp_users_list = temp_resume
+                else:
+                    logger.debug("The user specified was not found.")
+
+            # adds all main galleries and scraps
             temp_user_urls = []
             for i in range(len(temp_users_list)):
                 temp_users_list[i] = temp_users_list[i].replace('/user/','')
@@ -107,6 +123,9 @@ class Parser(object):
                 logger.debug("/gallery/%s added to urls" %(temp_users_list[i]))
                 temp_user_urls.append("/scraps/%s" %(temp_users_list[i]))
                 logger.debug("/scraps/%s added to urls" %(temp_users_list[i]))
+            
+            temp_user_urls.reverse()
+            url_count = url_count + len(temp_users_list)*2
             urls = temp_user_urls + urls
 
          #adds next page url
@@ -117,7 +136,11 @@ class Parser(object):
         if new_submissions_nextpagealt:
             nextpagealt_urls = list(map(lambda tag: tag.get('href'), new_submissions_nextpagealt))
             url_count = url_count + len(nextpagealt_urls)
-            urls = urls + nextpagealt_urls 
+            urls = urls + nextpagealt_urls
+        if gallery_nextpagealt:
+            gallery_nextpagealt_urls = list(map(lambda tag: tag.get('href'), gallery_nextpagealt))
+            url_count = url_count + len(gallery_nextpagealt_urls)
+            urls = urls + gallery_nextpagealt_urls
 
         #adds view urls
         if temp_urls:
@@ -127,8 +150,6 @@ class Parser(object):
                 temp_urls[i] = temp_urls[i].replace('sid-','')
                 temp_urls[i] = "/view/%s/" %(temp_urls[i])
             urls = urls + temp_urls
-        
-        # todo reverse urls
 
         logger.info("retrieved %u available urls." % url_count)
 
@@ -243,6 +264,7 @@ website.
 
         logger.debug('artwork parser initialized.')
 
+
     def get_download_link(self):
         """
         Get download link from html.
@@ -309,13 +331,10 @@ website.
     def get_filename(self):
         filename = 'error'
         self.stats_tag = self.bs.find('td', {'class': 'alt1 stats-container'})
-        self.posted_time = self.stats_tag.find('span', {'class': 'popup_date'}).string
-        logger.debug(self.posted_time)
         self.posted_title = self.get_posted_title()
-        self.posted_time = util.parse_datetime(self.posted_time)
-        self.posted_time = self.posted_time.strftime("%Y-%m-%d_%H-%M")
+        self.posted_time = self.get_posted_time()
         filename = "%s %s" %(self.posted_time,self.posted_title)
-
+        filename = filename.replace('/'," ,' ")
         filename = re.sub(r'[\\/*?:"<>|]',"",filename)
         return filename
     def get_description(self, filename):
@@ -362,12 +381,14 @@ website.
                                     'Height'    : int(resolution[1])}
             return formatted_resolution
 
-    @staticmethod
-    def get_posted_time(posted_time): #something needs to change
-        # get posted time from posted_tag
-        if posted_time.has_attr('title'):
-            return posted_time['title']
-
+    
+    def get_posted_time(self): #something needs to change
+        # get posted time from meta content
+        self.posted_time = self.stats_tag.find('span', {'class': 'popup_date'}).string
+        logger.debug(self.posted_time)
+        self.posted_time = util.parse_datetime(self.posted_time)
+        self.posted_time = self.posted_time.strftime("%Y-%m-%d_%H-%M")
+        return self.posted_time
 
     def get_posted_title(self):
         # get posted time from posted_tag
@@ -394,12 +415,10 @@ website.
 
     
     def get_artist(self):
-        self.posted_titlename = self.bs.find('meta', {'property': 'og:title'})
-        if self.posted_titlename.has_attr('content'):
-            if self.posted_titlename['content']:
-                self.x = self.posted_titlename['content']
-                self.x = self.x.split(' by ')
-                self.artist = self.x[len(self.x)-1] 
+        if self.bs.find('td', {'class': 'cat'}):
+            self.td_title_by_artist = self.bs.find('td', {'class': 'cat'})
+            self.artist_url = self.td_title_by_artist.contents[3]
+            self.artist = self.artist_url.contents[0]
             return self.artist
         else:
             return 'error occured'
@@ -431,7 +450,7 @@ website.
 
         # get posted time
         if self.posted_tag:
-            posted_time = self.posted_tag # self.get_posted_time(self.posted_tag)
+            posted_time = self.posted_tag
             if posted_time:
                 # parse posted time and format it to string that will
                 # recognized by sqlite

@@ -103,7 +103,16 @@ def parse_arguments():
         '--sub-folders',
         nargs = 1,
         default = ['none'],
-        choices = ['none', 'artist', 'user'],
+        type = str,
+        help = 'specifies if and how you want subfolders set'
+    )
+
+    # watchlist-resume - resume or start progress on a watchlist starting from the specified user
+    argparser.add_argument(
+        '--watchlist-resume',
+        nargs = 1,
+        default = [''],
+        type = str,
         help = 'specifies if and how you want subfolders set'
     )
 
@@ -207,6 +216,8 @@ if __name__ == '__main__':
     
     # configure subfolder
     scrapy.sub_folders = arguments.sub_folders[0]
+
+    parse.resume_on_user = arguments.watchlist_resume[0]
 
     # set signal handler
     signal.signal(signal.SIGINT, signal_handler)
