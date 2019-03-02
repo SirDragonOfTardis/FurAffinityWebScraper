@@ -116,6 +116,15 @@ def parse_arguments():
         help = 'specifies if and how you want subfolders set'
     )
 
+    # descriptions
+    argparser.add_argument(
+        '--descriptions',
+        nargs = 1,
+        default = ['none'],
+        choices = ['none', 'some', 'all'],
+        help = 'specifies if you want to download descriptions of the submissions'
+    )
+
     arguments = argparser.parse_args()
     return arguments
 
@@ -216,6 +225,7 @@ if __name__ == '__main__':
     
     # configure subfolder
     scrapy.sub_folders = arguments.sub_folders[0]
+    scrapy.description_arg = arguments.descriptions[0]
 
     parse.resume_on_user = arguments.watchlist_resume[0]
 

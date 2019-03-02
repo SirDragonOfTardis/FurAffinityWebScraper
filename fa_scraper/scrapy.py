@@ -89,6 +89,7 @@ class Scraper(object):
         logger.info('set scrapy interval to %d' % scrapy_interval)
 
         self.sub_folders = sub_folders
+        self.description_arg = description_arg
 
         # set cookies if provided
         self.cookies = cookies
@@ -168,9 +169,12 @@ class Scraper(object):
                 filename_new = parser.get_filename()
 
                 subfolder_setting = self.sub_folders
-                if not subfolder_setting is 'none':
+                if not subfolder_setting == 'none':
                     subdir = self.create_sub_directory_and_return_string(parser, subfolder_setting)
                     filename_new = subdir + '/' + filename_new
+
+                # debug
+                parser.get_tag_category()
 
                 download_link = parser.get_download_link()
                 # TODO: filter will be added here
@@ -180,14 +184,20 @@ class Scraper(object):
                 attributes['ID'] = int(ID)
                 
                 filename = util.combine_filename(filename_new, parser.get_filename_extension(download_link))
-                #logger.debug('Before descripion bool check.')
-                get_alt_and_description = parser.get_alt_and_description()
-                if get_alt_and_description is True:
+                
+                if self.description_arg == 'some':
+                    get_alt_and_description = parser.get_alt_and_description()
+                    if get_alt_and_description is True:
+                        logger.debug('Downloading alt link and Description.')
+                        alt_download_link = parser.get_alt_download_link()
+                        alt_filename = util.combine_filename(filename_new, parser.get_filename_extension(alt_download_link))
+                        self.download_artwork(alt_filename, alt_download_link)
+                        parser.get_description(filename_new)
+                elif self.description_arg == 'all':
                     logger.debug('Downloading alt link and Description.')
                     alt_download_link = parser.get_alt_download_link()
                     alt_filename = util.combine_filename(filename_new, parser.get_filename_extension(alt_download_link))
                     self.download_artwork(alt_filename, alt_download_link)
-
                     parser.get_description(filename_new)
                     
 

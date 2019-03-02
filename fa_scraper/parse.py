@@ -90,10 +90,6 @@ class Parser(object):
         #        url_count = url_count + len(temp_urls)
         #        urls = urls + temp_urls
 
-        temp_urls = self.bs.findAll('figure')
-        new_submissions_nextpage = self.bs.findAll('a', {"class": "more"}, limit=1)
-        new_submissions_nextpagealt = self.bs.findAll('a', {"class": "more-half"}, limit=1)
-        gallery_nextpagealt = self.bs.findAll('a', {"class": "button-link right"}, limit=1)
         gallery_user_folders = self.bs.findAll('ul', {"class": "default-group"})
 
         #adds user gallery and scraps from a watch list
@@ -103,7 +99,7 @@ class Parser(object):
 
             # starts list from specified user
             if not self.resume_on_user == '':
-                user_to_check = '/user/' + self.resume_on_user + '/'
+                user_to_check = '/user/' + self.resume_on_user.lower() + '/'
                 if temp_users_list.index(user_to_check):
                     temp_resume = temp_users_list
                     temp_resume_index = temp_users_list.index(user_to_check)
@@ -112,8 +108,12 @@ class Parser(object):
                         temp_resume.pop(0)
                         r = r+1
                     temp_users_list = temp_resume
+                    url_count = url_count + (len(temp_users_list) - (temp_resume_index + 1)) * 2
                 else:
                     logger.debug("The user specified was not found.")
+            else:
+                url_count = url_count + len(temp_users_list)*2
+
 
             # adds all main galleries and scraps
             temp_user_urls = []
@@ -125,31 +125,49 @@ class Parser(object):
                 logger.debug("/scraps/%s added to urls" %(temp_users_list[i]))
             
             temp_user_urls.reverse()
-            url_count = url_count + len(temp_users_list)*2
             urls = temp_user_urls + urls
 
-         #adds next page url
+        # adds users gallery if start url is user page
+        if '/user/' in self.url:
+            temp_single_user_urls = []
+            temp_single_user = self.url.replace('https://www.furaffinity.net/user/','')
+            temp_single_user_urls.append('/scraps/'+temp_single_user)
+            temp_single_user_urls.append('/gallery/'+temp_single_user)
+            url_count = url_count + len(temp_single_user_urls)
+            urls = temp_single_user_urls + urls
+        # adds next page url
+        new_submissions_nextpage = self.bs.findAll('a', {"class": "more"})
         if new_submissions_nextpage:
-            nextpage_urls = list(map(lambda tag: tag.get('href'), new_submissions_nextpage))
+            nextpage_urls = []
+            found_next = False
+            for more in new_submissions_nextpage:
+                if not 'prev' in more['class'] and found_next is False:
+                    nextpage_urls.append(more['href'])
+                    found_next = True
             url_count = url_count + len(nextpage_urls)
             urls = nextpage_urls + urls
+        new_submissions_nextpagealt = self.bs.findAll('a', {"class": "more-half"}, limit=1)
         if new_submissions_nextpagealt:
             nextpagealt_urls = list(map(lambda tag: tag.get('href'), new_submissions_nextpagealt))
             url_count = url_count + len(nextpagealt_urls)
             urls = urls + nextpagealt_urls
+        gallery_nextpagealt = self.bs.findAll('a', {"class": "button-link right"}, limit=1)
         if gallery_nextpagealt:
             gallery_nextpagealt_urls = list(map(lambda tag: tag.get('href'), gallery_nextpagealt))
             url_count = url_count + len(gallery_nextpagealt_urls)
             urls = urls + gallery_nextpagealt_urls
 
-        #adds view urls
-        if temp_urls:
-            temp_urls = list(map(lambda tag: tag.get('id'), temp_urls))
-            url_count = url_count + len(temp_urls)
-            for i in range(len(temp_urls)):
-                temp_urls[i] = temp_urls[i].replace('sid-','')
-                temp_urls[i] = "/view/%s/" %(temp_urls[i])
-            urls = urls + temp_urls
+        # adds view urls
+        if not '/user/' in self.url:
+            temp_urls = self.bs.findAll('figure')
+            if temp_urls:
+                temp_urls = list(map(lambda tag: tag.get('id'), temp_urls))
+                url_count = url_count + len(temp_urls)
+                for i in range(len(temp_urls)):
+                    temp_urls[i] = temp_urls[i].replace('sid-','')
+                    temp_urls[i] = "/view/%s/" %(temp_urls[i])
+                temp_urls.reverse()
+                urls = urls + temp_urls
 
         logger.info("retrieved %u available urls." % url_count)
 
@@ -275,94 +293,211 @@ website.
         Returns:
             download_link - the download link of artwork, '' if cannot get
         """
-        download_link = ''
-
-        image_tag = self.bs.find('img', {'id': 'submissionImg'})
-        object_tag = self.bs.find('object', {'id':'flash_embed'})
-        if image_tag and image_tag.has_attr('src'):
-            download_link = 'https:' + image_tag['src']
-            logger.info('retrieved download link - "%s".' % download_link)
-        # looks for .swf
-        elif object_tag and object_tag.has_attr('data'):
-            download_link = 'https:' + object_tag['data']
-            logger.info('retrieved download link - "%s".' % download_link)
-        else:
+        try:
+            download_link = ''
+            image_tag = self.bs.find('img', {'id': 'submissionImg'})
+            object_tag = self.bs.find('object', {'id':'flash_embed'})
+            if image_tag and image_tag.has_attr('src'):
+                download_link = 'https:' + image_tag['src']
+                logger.info('retrieved download link - "%s".' % download_link)
+            # looks for .swf
+            elif object_tag and object_tag.has_attr('data'):
+                download_link = 'https:' + object_tag['data']
+                logger.info('retrieved download link - "%s".' % download_link)
+            else:
+                logger.info('unable to retrieve download link.')
+            return download_link
+        except:
             logger.info('unable to retrieve download link.')
-
-        return download_link
 
     def get_alt_and_description(self):
         """
         return true if story is mentioned in category or title.
         or if submission is a flash or music
         """
-        self.category = self.bs.find('b', text='Category:').next_sibling
-        logger.debug('Category found = %s' % self.category)
-        # for getting title of submission
-        self.posted_title = self.get_posted_title()
-        logger.debug('Title = %s' % self.posted_title)
-        # for checking the description
-        desc_table = self.bs.findAll('table', {'class': 'maintable'})[1]
-        desc_row = desc_table.findAll('tr')[2]
-        #desc = desc_table.find('td', {'class': 'alt1'})
-        desc = str(desc_row)
-        if DESCRIPTION_KEYWORDS:
-            for keyword in DESCRIPTION_KEYWORDS:
-                if keyword.lower() in self.category.lower():
-                    logger.debug('Matched category to %s' % keyword)
-                    return True
-                elif keyword.lower() in self.posted_title.lower():
-                    logger.debug('Matched %s in title' % keyword)
-                    return True
-                elif keyword.lower() in desc.lower():
-                    logger.debug('Matched %s in description' % keyword)
-                    return True
-        else:
-            logger.debug('Found no match for description needed.')
+        try:
+            self.category = self.bs.find('b', text='Category:').next_sibling
+            logger.debug('Category found = %s' % self.category)
+            # for getting title of submission
+            self.posted_title = self.get_posted_title()
+            logger.debug('Title = %s' % self.posted_title)
+            # for checking the description
+            desc_table = self.bs.findAll('table', {'class': 'maintable'})[1]
+            desc_row = desc_table.findAll('tr')[2]
+            # desc = desc_table.find('td', {'class': 'alt1'})
+            desc = str(desc_row)
+            if DESCRIPTION_KEYWORDS:
+                for keyword in DESCRIPTION_KEYWORDS:
+                    if keyword.lower() in self.category.lower():
+                        logger.debug('Matched category to %s' % keyword)
+                        return True
+                    elif keyword.lower() in self.posted_title.lower():
+                        logger.debug('Matched %s in title' % keyword)
+                        return True
+                    elif keyword.lower() in desc.lower():
+                        logger.debug('Matched %s in description' % keyword)
+                        return True
+            else:
+                logger.info('Found no match for description needed.')
+                return False
+        except:
             return False
     def get_alt_download_link(self):
         """
         Get download link from the download link in view page.
         """
-        download_link = ''
-        download_not_tag = self.bs.find('a', text='Download')
-        download_link = 'https:' +  download_not_tag['href']
-        return download_link
+        try:
+            download_link = ''
+            download_not_tag = self.bs.find('a', text='Download')
+            download_link = 'https:' +  download_not_tag['href']
+            return download_link
+        except:
+            logger.info('unable to retrieve download link.')
+
     def get_filename(self):
-        filename = 'error'
-        self.stats_tag = self.bs.find('td', {'class': 'alt1 stats-container'})
-        self.posted_title = self.get_posted_title()
-        self.posted_time = self.get_posted_time()
-        filename = "%s %s" %(self.posted_time,self.posted_title)
-        filename = filename.replace('/'," ,' ")
-        filename = re.sub(r'[\\/*?:"<>|]',"",filename)
-        return filename
+        """
+        Gets filename to save the post as.
+        """
+        try:
+            self.stats_tag = self.bs.find('td', {'class': 'alt1 stats-container'})
+            self.posted_title = self.get_posted_title()
+            self.posted_time = self.get_posted_time()
+            filename = "%s %s" %(self.posted_time,self.posted_title)
+            filename = filename.replace('/'," ,' ")
+            filename = re.sub(r'[\\/*?:"<>|]',"",filename)
+            return filename
+        except:
+            filename = 'error'
+
     def get_description(self, filename):
         """
         returns the table containing tags and description
         """
-        desc_table = self.bs.findAll('table', {'class': 'maintable'})[1]
-        desc = str(desc_table)
-        desc = unicodedata.normalize('NFKD', desc)
-        desc = (desc.encode('ascii','ignore')).decode('utf-8')
-        style = """
-                <link type="text/css" rel="stylesheet" href="../../../css/dark.css" />
-                <link type="text/css" rel="stylesheet" href="../../css/dark.css" />
-                <link type="text/css" rel="stylesheet" href="../css/dark.css" />
-                <link type="text/css" rel="stylesheet" href="http://www.furaffinity.net/themes/classic/css/dark.css" />
-                """
-
-        data = '<html><body>' + style + desc + '</body></html>'
-         
         try:
+            desc_table = self.bs.findAll('table', {'class': 'maintable'})[1]
+            desc = str(desc_table)
+            desc = unicodedata.normalize('NFKD', desc)
+            desc = (desc.encode('ascii','ignore')).decode('utf-8')
+            style = """
+                    <link type="text/css" rel="stylesheet" href="../../../css/dark.css" />
+                    <link type="text/css" rel="stylesheet" href="../../css/dark.css" />
+                    <link type="text/css" rel="stylesheet" href="../css/dark.css" />
+                    <link type="text/css" rel="stylesheet" href="http://www.furaffinity.net/themes/classic/css/dark.css" />
+                    """
+
+            data = '<html><body>' + style + desc + '</body></html>'
             with open('images/' + filename + ' Description.html', 'wb') as description:
                 description.write(data.encode())
                 description.close()
                 logger.info('Description saved.')
                 return True
-        except EnvironmentError:
+        except:
             return False
         return desc
+    
+    def get_artist(self):
+        try:
+            self.td_title_by_artist = self.bs.find('td', {'class': 'cat'})
+            self.artist_url = self.td_title_by_artist.contents[3]
+            self.artist = self.artist_url.contents[0]
+            return self.artist
+        except:
+            return '_user_unknown_'
+
+    def get_tag(self, tag):
+        try:
+            self.category = self.bs.find('td', {'class':'alt1 stats-container'})
+            for index, content in enumerate( self.category.contents, start=0):
+                if self.category.contents[index].string == tag:
+                    tag_index = index + 1
+                    self.category_tag = self.category.contents[tag_index].string
+                    logger.debug(tag + " " + self.category_tag)
+                    return self.category_tag
+        except:
+            logger.info("Category tag not found.")
+
+    def get_tag_category(self):
+        try:
+            category = self.get_tag('Category:')
+            return category
+        except:
+            logger.info("Unable to retrieve Category.")
+
+    def get_tag_gender(self):
+        try:
+            gender = self.get_tag('Gender:')
+            return category
+        except:
+            logger.info("Unable to retrieve Gender.")
+
+    def get_tag_resolution(self):
+        try:
+            resolution = self.get_tag('Resolution:')
+            return category
+        except:
+            logger.info("Unable to retrieve Resolution.")
+
+    def get_tag_species(self):
+        try:
+            species = self.get_tag('Species:')
+            return category
+        except:
+            logger.info("Unable to retrieve Species.")
+
+    def get_tag_theme(self):
+        try:
+            theme = self.get_tag('Theme:')
+            return category
+        except:
+            logger.info("Unable to retrieve Theme.")
+
+    def get_id(self):
+        try:
+            if self.url.find('/view/') != -1:
+                id = self.url.split('/view/',1)[1]
+                if '/' in id:
+                    id = id.split('/',1)[0]
+                logger.debug("post id = " + id)
+                return id
+            elif self.url.find('/full/') != -1:
+                id = self.url.split('/full/',1)[1]
+                if '/' in id:
+                    id = id.split('/',1)[0]
+                logger.debug("post id = " + id)
+                return id
+        except:
+            logger.debug("id not returned")
+
+    def get_maturity_rating(self):
+        try:
+            self.rating = self.bs.find('meta', {'name', 'twitter:data2'})
+            self.rating = self.rating['content']
+            logger.debug("Content Rating is: " + self.rating)
+        except:
+            logger.debug("Content Rating not found")
+            return 'Unknown'
+
+    def get_posted_time(self): # something needs to change
+        # get posted time from meta content
+        try:
+            self.posted_time = self.stats_tag.find('span', {'class': 'popup_date'}).string
+            logger.debug("Posted time is: " + self.posted_time)
+            self.posted_time = util.parse_datetime(self.posted_time)
+            self.posted_time = self.posted_time.strftime("%Y-%m-%d_%H-%M")
+            return self.posted_time
+        except:
+            return 
+
+    def get_posted_title(self):
+        # get posted time from posted_tag
+        # returns "title by artist"
+        try:
+            self.posted_titlename = self.bs.find('meta', {'property': 'og:title'})
+            if self.posted_titlename.has_attr('content'):
+                return self.posted_titlename['content']
+        except:
+            logger.info("No title found for post. using '_no title_")
+            return '_no title_'
 
     @staticmethod
     def get_matched_string(tag, regex):
@@ -380,23 +515,7 @@ website.
             formatted_resolution = {'Width'     : int(resolution[0]),
                                     'Height'    : int(resolution[1])}
             return formatted_resolution
-
-    
-    def get_posted_time(self): #something needs to change
-        # get posted time from meta content
-        self.posted_time = self.stats_tag.find('span', {'class': 'popup_date'}).string
-        logger.debug(self.posted_time)
-        self.posted_time = util.parse_datetime(self.posted_time)
-        self.posted_time = self.posted_time.strftime("%Y-%m-%d_%H-%M")
-        return self.posted_time
-
-    def get_posted_title(self):
-        # get posted time from posted_tag
-        # returns "title by artist"
-        self.posted_titlename = self.bs.find('meta', {'property': 'og:title'})
-        if self.posted_titlename.has_attr('content'):
-            return self.posted_titlename['content']
-
+            
     @staticmethod
     def combine_keywords(keywords):
         # use reduce to combine all keywords to a string seperate by space
@@ -412,16 +531,6 @@ website.
             return 'unparsed attributes: ' + reduce(lambda x, y : x + ' ' + y, unparsed_attributes) + '.'
         else:
             return 'all attributes parsed.'
-
-    
-    def get_artist(self):
-        if self.bs.find('td', {'class': 'cat'}):
-            self.td_title_by_artist = self.bs.find('td', {'class': 'cat'})
-            self.artist_url = self.td_title_by_artist.contents[3]
-            self.artist = self.artist_url.contents[0]
-            return self.artist
-        else:
-            return 'error occured'
 
     @staticmethod
     def get_adult(rating_tag):
@@ -509,7 +618,11 @@ website.
         # get filename extension from given download link
         match = re.search(ArtworkParser.FILENAME_EXTENSION_REGEX, link)
         if match:
-            return match.group(1)
+            if not len(match.group(1)) > 4:
+                return match.group(1)
+            else:
+                logger.warning('Did not retrieve filename extention. Using JPG extension. Be sure to check file.')
+                return 'jpg'
 
     @staticmethod
     def view_to_full(url):

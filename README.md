@@ -74,7 +74,14 @@ Other dependencies are listed in requirements.txt.
     --log-level {debug,info,warning,error,fatal}
                             sets verbosity level for console log messages,
                             default: info
-
+	--sub-folders
+							sets how subfolders are to be created.
+							"New Submissions/%Y/{artist}" for example
+							will save a submission by 2_gryphon in 2019
+							in the folder "/images/New Submissions/2019/2_gryphon/"
+	--watchlist-resume						
+							if begin-url is a watchlist you can specify the user
+							in the list you want to start with in descending order.
 ## Cookies
 
 To specify cookies to scrape in login state please add --cookies/-c COOKIES_FILE_NAME in command-line arguments.
