@@ -418,36 +418,31 @@ website.
 
     def get_tag_category(self):
         try:
-            category = self.get_tag('Category:')
-            return category
+            return self.get_tag('Category:')
         except:
             logger.info("Unable to retrieve Category.")
 
     def get_tag_gender(self):
         try:
-            gender = self.get_tag('Gender:')
-            return category
+            return self.get_tag('Gender:')
         except:
             logger.info("Unable to retrieve Gender.")
 
     def get_tag_resolution(self):
         try:
-            resolution = self.get_tag('Resolution:')
-            return category
+            return self.get_tag('Resolution:')
         except:
             logger.info("Unable to retrieve Resolution.")
 
     def get_tag_species(self):
         try:
-            species = self.get_tag('Species:')
-            return category
+            return self.get_tag('Species:')
         except:
             logger.info("Unable to retrieve Species.")
 
     def get_tag_theme(self):
         try:
-            theme = self.get_tag('Theme:')
-            return category
+            return self.get_tag('Theme:')
         except:
             logger.info("Unable to retrieve Theme.")
 
@@ -493,8 +488,7 @@ website.
         # returns "title by artist"
         try:
             self.posted_titlename = self.bs.find('meta', {'property': 'og:title'})
-            if self.posted_titlename.has_attr('content'):
-                return self.posted_titlename['content']
+            return self.posted_titlename['content']
         except:
             logger.info("No title found for post. using '_no title_")
             return '_no title_'
