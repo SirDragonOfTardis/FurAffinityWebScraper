@@ -53,7 +53,7 @@ class Parser(object):
         logger.warning('unknown url type from url: %s.' % url)
         return 'unknown'
 
-    def __init__(self, html, url):
+    def __init__(self, html, url, id_mode = 'false', startingid = 1):
         # lazy load, trying to generate compiled regex table when the first
         # instance initialized.
         if not Parser.URL_REGEX_TABLE:
@@ -62,6 +62,10 @@ class Parser(object):
         # initialize bs object for parsing
         self.bs = BeautifulSoup(html, "html.parser")
         self.url = url
+
+
+        self.idMode = id_mode
+        self.startId = startingid
         
         self.resume_on_user = resume_on_user
 
@@ -81,98 +85,128 @@ class Parser(object):
         url_count = 0
         scrapemode = "newest2pg"
 
-        # for url_type in URL_TYPES:
-        #    # look up directly from regex table
-        #    temp_urls = self.bs.findAll('a', href = Parser.URL_REGEX_TABLE[url_type])
-        #    if temp_urls:
-        #        # use map to get href attribute(url) from matched tag
-        #        temp_urls = list(map(lambda tag: tag.get('href'), temp_urls))
-        #        url_count = url_count + len(temp_urls)
-        #        urls = urls + temp_urls
+        if self.idMode == 'false':
+            gallery_user_folders = self.bs.findAll('ul', {"class": "default-group"})
 
-        gallery_user_folders = self.bs.findAll('ul', {"class": "default-group"})
+            #adds user gallery and scraps from a watch list
+            if '/watchlist/' in self.url:
+                temp_users = self.bs.findAll('a')
+                temp_users_list = list(map(lambda tag: tag.get('href'), temp_users))
 
-        #adds user gallery and scraps from a watch list
-        if '/watchlist/' in self.url:
-            temp_users = self.bs.findAll('a')
-            temp_users_list = list(map(lambda tag: tag.get('href'), temp_users))
-
-            # starts list from specified user
-            if not self.resume_on_user == '':
-                user_to_check = '/user/' + self.resume_on_user.lower() + '/'
-                if temp_users_list.index(user_to_check):
-                    temp_resume = temp_users_list
-                    temp_resume_index = temp_users_list.index(user_to_check)
-                    r = 0
-                    while r < temp_resume_index:
-                        temp_resume.pop(0)
-                        r = r+1
-                    temp_users_list = temp_resume
-                    url_count = url_count + (len(temp_users_list) - (temp_resume_index + 1)) * 2
+                # starts list from specified user
+                if not self.resume_on_user == '':
+                    user_to_check = '/user/' + self.resume_on_user.lower() + '/'
+                    if temp_users_list.index(user_to_check):
+                        temp_resume = temp_users_list
+                        temp_resume_index = temp_users_list.index(user_to_check)
+                        r = 0
+                        while r < temp_resume_index:
+                            temp_resume.pop(0)
+                            r = r+1
+                        temp_users_list = temp_resume
+                        url_count = url_count + (len(temp_users_list) - (temp_resume_index + 1)) * 2
+                    else:
+                        logger.debug("The user specified was not found.")
                 else:
-                    logger.debug("The user specified was not found.")
+                    url_count = url_count + len(temp_users_list)*2
+
+                # adds all main galleries and scraps
+                temp_user_urls = []
+                for i in range(len(temp_users_list)):
+                    temp_users_list[i] = temp_users_list[i].replace('/user/','')
+                    temp_user_urls.append("/gallery/%s" %(temp_users_list[i]))
+                    logger.debug("/gallery/%s added to urls" %(temp_users_list[i]))
+                    temp_user_urls.append("/scraps/%s" %(temp_users_list[i]))
+                    logger.debug("/scraps/%s added to urls" %(temp_users_list[i]))
+
+                temp_user_urls.reverse()
+                urls = temp_user_urls + urls
+
+            # adds users gallery if start url is user page
+            if '/user/' in self.url:
+                temp_single_user_urls = []
+                temp_single_user = self.url.replace('https://www.furaffinity.net/user/','')
+                temp_single_user_urls.append('/scraps/'+temp_single_user)
+                temp_single_user_urls.append('/gallery/'+temp_single_user)
+                url_count = url_count + len(temp_single_user_urls)
+                urls = temp_single_user_urls + urls
+
+            # adds single view page that is start url
+            if '/view/' in self.url:
+                url_count = url_count + 1
+                temp_view_url = self.url.replace('https://www.furaffinity.net','')
+                urls.append(temp_view_url)
+
+            # adds next page url
+            new_submissions_nextpage = self.bs.findAll('a', {"class": "more"})
+            if new_submissions_nextpage:
+                nextpage_urls = []
+                found_next = False
+                for more in new_submissions_nextpage:
+                    if not 'prev' in more['class'] and found_next is False:
+                        nextpage_urls.append(more['href'])
+                        found_next = True
+                url_count = url_count + len(nextpage_urls)
+                urls = nextpage_urls + urls
+            new_submissions_nextpagealt = self.bs.findAll('a', {"class": "more-half"}, limit=1)
+            if new_submissions_nextpagealt:
+                nextpagealt_urls = list(map(lambda tag: tag.get('href'), new_submissions_nextpagealt))
+                url_count = url_count + len(nextpagealt_urls)
+                urls = urls + nextpagealt_urls
+            gallery_nextpagealt = self.bs.findAll('a', {"class": "button-link right"}, limit=1)
+            if gallery_nextpagealt:
+                gallery_nextpagealt_urls = list(map(lambda tag: tag.get('href'), gallery_nextpagealt))
+                url_count = url_count + len(gallery_nextpagealt_urls)
+                urls = urls + gallery_nextpagealt_urls
+
+            # adds view urls
+            if not '/user/' in self.url:
+                temp_urls = self.bs.findAll('figure')
+                if temp_urls:
+                    temp_urls = list(map(lambda tag: tag.get('id'), temp_urls))
+                    url_count = url_count + len(temp_urls)
+                    for i in range(len(temp_urls)):
+                        temp_urls[i] = temp_urls[i].replace('sid-','')
+                        temp_urls[i] = "/view/%s/" %(temp_urls[i])
+                    temp_urls.reverse()
+                    urls = urls + temp_urls
+
+            logger.info("retrieved %u available urls." % url_count)
+
+        elif self.idMode == 'true':
+            # current urls add next url? be able to add if no page exists
+            # check for latest url? no. find in init and set
+            # return urls
+
+            initialId = self.startId
+
+            # get current id
+            currentId = int(re.search(r'\d+', self.url).group())
+
+            if initialId < 1:
+                logger.error("inital ID can not be less than 1.")
+            elif currentId == initialId:
+                url_count = 2
+                nextId = initialId + 1
+                startingurl = '/view/' + str(currentId)
+                urls.insert(0, startingurl)
+            elif currentId > initialId:
+                url_count = 2
+                nextId = currentId + 1
             else:
-                url_count = url_count + len(temp_users_list)*2
+                url_count = 1
+                logger.warning("No valid next ID")
 
+            if nextId is not None:
+                nexturl = '/view/' + str(nextId)
 
-            # adds all main galleries and scraps
-            temp_user_urls = []
-            for i in range(len(temp_users_list)):
-                temp_users_list[i] = temp_users_list[i].replace('/user/','')
-                temp_user_urls.append("/gallery/%s" %(temp_users_list[i]))
-                logger.debug("/gallery/%s added to urls" %(temp_users_list[i]))
-                temp_user_urls.append("/scraps/%s" %(temp_users_list[i]))
-                logger.debug("/scraps/%s added to urls" %(temp_users_list[i]))
-            
-            temp_user_urls.reverse()
-            urls = temp_user_urls + urls
+            # add next url
+            urls.insert(0, nexturl)
+            logger.info("retrieved %u available urls." % url_count)
 
-        # adds users gallery if start url is user page
-        if '/user/' in self.url:
-            temp_single_user_urls = []
-            temp_single_user = self.url.replace('https://www.furaffinity.net/user/','')
-            temp_single_user_urls.append('/scraps/'+temp_single_user)
-            temp_single_user_urls.append('/gallery/'+temp_single_user)
-            url_count = url_count + len(temp_single_user_urls)
-            urls = temp_single_user_urls + urls
-        # adds next page url
-        new_submissions_nextpage = self.bs.findAll('a', {"class": "more"})
-        if new_submissions_nextpage:
-            nextpage_urls = []
-            found_next = False
-            for more in new_submissions_nextpage:
-                if not 'prev' in more['class'] and found_next is False:
-                    nextpage_urls.append(more['href'])
-                    found_next = True
-            url_count = url_count + len(nextpage_urls)
-            urls = nextpage_urls + urls
-        new_submissions_nextpagealt = self.bs.findAll('a', {"class": "more-half"}, limit=1)
-        if new_submissions_nextpagealt:
-            nextpagealt_urls = list(map(lambda tag: tag.get('href'), new_submissions_nextpagealt))
-            url_count = url_count + len(nextpagealt_urls)
-            urls = urls + nextpagealt_urls
-        gallery_nextpagealt = self.bs.findAll('a', {"class": "button-link right"}, limit=1)
-        if gallery_nextpagealt:
-            gallery_nextpagealt_urls = list(map(lambda tag: tag.get('href'), gallery_nextpagealt))
-            url_count = url_count + len(gallery_nextpagealt_urls)
-            urls = urls + gallery_nextpagealt_urls
-
-        # adds view urls
-        if not '/user/' in self.url:
-            temp_urls = self.bs.findAll('figure')
-            if temp_urls:
-                temp_urls = list(map(lambda tag: tag.get('id'), temp_urls))
-                url_count = url_count + len(temp_urls)
-                for i in range(len(temp_urls)):
-                    temp_urls[i] = temp_urls[i].replace('sid-','')
-                    temp_urls[i] = "/view/%s/" %(temp_urls[i])
-                temp_urls.reverse()
-                urls = urls + temp_urls
-
-        logger.info("retrieved %u available urls." % url_count)
-
+        else:
+            logger.error('idMode is neither true or false.')
         return urls
-
 
 class ArtworkParser(Parser):
     """
@@ -268,7 +302,7 @@ website.
                          'tag to None.')
         logger.debug('parsed tags used to retrieve artwork attribute.')
 
-    def __init__(self, html, url):
+    def __init__(self, html, url, id_mode = 'false', startingid = 1):
         # lazy load similar to Parser, will compile regex for only once
         if not ArtworkParser.REGEX_TABLE:
             ArtworkParser.generate_regex_table()
@@ -279,6 +313,9 @@ website.
         super(ArtworkParser, self).__init__(html, url)
         # parse tags
         self.parse_tags()
+
+        self.idMode = id_mode
+        self.startId = startingid
 
         logger.debug('artwork parser initialized.')
 
@@ -347,7 +384,6 @@ website.
         Get download link from the download link in view page.
         """
         try:
-            download_link = ''
             download_not_tag = self.bs.find('a', text='Download')
             download_link = 'https:' +  download_not_tag['href']
             return download_link
@@ -397,11 +433,12 @@ website.
     
     def get_artist(self):
         try:
-            self.td_title_by_artist = self.bs.find('td', {'class': 'cat'})
-            self.artist_url = self.td_title_by_artist.contents[3]
+            self.td_title_by_artist = self.bs.find('div', {'class': 'classic-submission-title information'})
+            self.artist_url = self.td_title_by_artist.find('a')
             self.artist = self.artist_url.contents[0]
             return self.artist
         except:
+            #TODO pause on exeption
             return '_user_unknown_'
 
     def get_tag(self, tag):
@@ -622,3 +659,9 @@ website.
     def view_to_full(url):
         # convert url like /view/ to /full/
         return url.replace('view', 'full')
+
+    def get_title(self):
+        title = self.bs.find('title')
+        title = title.text
+        logger.info('title is "%s"' % title)
+        return title

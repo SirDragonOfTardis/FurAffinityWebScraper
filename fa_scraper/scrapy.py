@@ -79,7 +79,7 @@ class Scraper(object):
         # wrapper that add url to instance's scrapied set
         self.scrapied_set.add(url)
 
-    def __init__(self, scrapy_interval, cookies = {}, begin_url = None):
+    def __init__(self, scrapy_interval, cookies = {}, begin_url = None, starting_id = 1, id_mode = 'false'):
         # initialize scrapied set and scrapying queue
         self.scrapied_set = set()
         self.scrapying_queue = collections.deque()
@@ -103,6 +103,9 @@ class Scraper(object):
         # use cfscrape to avoid block from cloudflare
         self.scraper = cfscrape.create_scraper()
 
+        self.starting_id = starting_id
+        self.id_mode = id_mode
+
         logger.debug('scraper initialized.')
 
     def scrapy_pending_url(self):
@@ -116,14 +119,19 @@ class Scraper(object):
             attributes - attributes dictionary of current artwork, None if scrapied
         url isn't of type view or error occurs
         """
+
         # lazy load technical, scrapy base url if hasn't
         if not Scraper.SCRAPIED_BASE:
-            # if begin URL is specified, use it
-            url = BASE_URL + self.begin_url if self.begin_url else BASE_URL
-            
+
+            if self.id_mode == 'false':
+                # if begin URL is specified, use it
+                url = BASE_URL + self.begin_url if self.begin_url else BASE_URL
+            elif self.id_mode == 'true':
+                url = BASE_URL + '/view/' + str(self.starting_id)
+
             main_html = self.open_url(url)
             if main_html:
-                parser = parse.Parser(main_html, url)
+                parser = parse.Parser(main_html, url, self.id_mode, self.starting_id)
                 sites = parser.get_all_urls()
                 self.add_unscrapied_urls(sites)
                 logger.debug('begin url %s scrapied.' % url)
@@ -154,13 +162,15 @@ class Scraper(object):
             logger.info('scrapied "%s" site with url %s.' % (url_type, url))
 
             # initalize parser according to url type
-            parser = parse.ArtworkParser(html, url) if url_type == 'view' else parse.Parser(html, url)
+            # add exception for id mode
+            parser = parse.ArtworkParser(html, url, self.id_mode, self.starting_id) if url_type == 'view' else parse.Parser(html, url, self.id_mode, self.starting_id)
 
             # retrieve urls and add them to instance's scrapying queue
+
             urls = parser.get_all_urls()
             self.add_unscrapied_urls(urls)
 
-            if url_type == 'view':
+            if url_type == 'view' and self.view_status(parser) is True:
 
                 # for view, parse attributes and then try to download image
                 attributes = parser.get_artwork_attributes()
@@ -281,6 +291,7 @@ class Scraper(object):
             # occurs error when saving image
             logger.warning('error when saving image "%s".' % filename)
             return False
+
     def download_description(self, filename, desc):
         """
         """
@@ -293,3 +304,13 @@ class Scraper(object):
                 return True
         except EnvironmentError:
             return False
+
+    def view_status(self, parser):
+        """
+        Check the view or full page to see if the entry is removed or denied access.
+        """
+        title = parser.get_title()
+        if title == 'System Error':
+            return False
+        else:
+            return True

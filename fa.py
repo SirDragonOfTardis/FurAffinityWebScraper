@@ -116,6 +116,7 @@ def parse_arguments():
         help = 'specifies if and how you want subfolders set'
     )
 
+
     # descriptions
     argparser.add_argument(
         '--descriptions',
@@ -123,6 +124,27 @@ def parse_arguments():
         default = ['none'],
         choices = ['none', 'some', 'all'],
         help = 'specifies if you want to download descriptions of the submissions'
+    )
+
+    # id-mode - options or 'false' or 'true'
+    # specifies if mode is to cycle through submission ID or content of starting url
+    argparser.add_argument(
+        '--id-mode',
+        nargs = 1,
+        type = str,
+        default = ['false'],
+        choices = ['true', 'false'],
+        help = 'set to enable ID mode which will incrementally try to dl all submissions based on starting ID (default = 1)'
+    )
+
+    # starting-id
+    # specifies the id to start downloading from when id-mode is true
+    argparser.add_argument(
+        '--starting-id',
+        nargs = 1,
+        default = [1],
+        type = int,
+        help = 'specifies the id to start downloading from when id-mode is true'
     )
 
     arguments = argparser.parse_args()
@@ -257,7 +279,23 @@ if __name__ == '__main__':
             # alternative begin-url specified
             begin_url = arguments.begin_url[0]
 
-        scraper = scrapy.Scraper(arguments.scrapy_interval[0], cookies, begin_url)
+        startingId = 1
+        if arguments.starting_id:
+            # alternate starting id
+            startingId = arguments.starting_id[0]
+
+        id_mode = 'false'
+        if arguments.id_mode:
+            # use id mode?
+            id_mode = arguments.id_mode[0]
+
+        if id_mode == 'false':
+            scraper = scrapy.Scraper(arguments.scrapy_interval[0], cookies, begin_url)
+        elif id_mode == 'true':
+            scraper = scrapy.Scraper(arguments.scrapy_interval[0], cookies, begin_url, startingId, id_mode)
+        else:
+            logger.error('arg id mode is neither true nor false')
+
     logger.info('initialization completed.')
 
     scrapy_mode = arguments.scrapy_mode[0]
