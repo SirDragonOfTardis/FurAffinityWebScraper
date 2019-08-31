@@ -38,7 +38,9 @@ class Scraper(object):
             try:
                 # timeout is necessary here
                 response = self.scraper.get(url, timeout = 60, cookies = self.cookies)
+                # when succesful sets attempts to 6
                 attempts = 6
+
             except:
                 # catch all Exceptions here
                 attempts += 1
@@ -48,6 +50,9 @@ class Scraper(object):
             # checks response's status code
             if response.status_code == 200:
                 logger.debug('received response from "%s".' % url)
+            elif response.status_code == 503:
+                logger.warning('request sent to "%s" returned error code: %u.' % (url, response.status_code))
+                continue
             else:
                 logger.warning('request sent to "%s" returned error code: %u.' % (url, response.status_code))
 
@@ -86,7 +91,10 @@ class Scraper(object):
 
         # set sleep interval between two requests
         self.scrapy_interval = scrapy_interval
+        self.scrapy_interval_start = scrapy_interval
         logger.info('set scrapy interval to %d' % scrapy_interval)
+
+        self.scrapy_interval_variable = True
 
         self.sub_folders = sub_folders
         self.description_arg = description_arg
@@ -165,12 +173,15 @@ class Scraper(object):
             # add exception for id mode
             parser = parse.ArtworkParser(html, url, self.id_mode, self.starting_id) if url_type == 'view' else parse.Parser(html, url, self.id_mode, self.starting_id)
 
-            # retrieve urls and add them to instance's scrapying queue
 
+            # retrieve urls and add them to instance's scrapying queue
             urls = parser.get_all_urls()
             self.add_unscrapied_urls(urls)
 
             if url_type == 'view' and self.view_status(parser) is True:
+                # update interval speed
+                #if self.var_interval == True
+                self.interval_update(parser)
 
                 # for view, parse attributes and then try to download image
                 attributes = parser.get_artwork_attributes()
@@ -182,9 +193,6 @@ class Scraper(object):
                 if not subfolder_setting == 'none':
                     subdir = self.create_sub_directory_and_return_string(parser, subfolder_setting)
                     filename_new = subdir + '/' + filename_new
-
-                # debug
-                parser.get_tag_category()
 
                 download_link = parser.get_download_link()
                 # TODO: filter will be added here
@@ -201,13 +209,15 @@ class Scraper(object):
                         logger.debug('Downloading alt link and Description.')
                         alt_download_link = parser.get_alt_download_link()
                         alt_filename = util.combine_filename(filename_new, parser.get_filename_extension(alt_download_link))
-                        self.download_artwork(alt_filename, alt_download_link)
+                        if alt_download_link != download_link:
+                            self.download_artwork(alt_filename, alt_download_link)
                         parser.get_description(filename_new)
                 elif self.description_arg == 'all':
                     logger.debug('Downloading alt link and Description.')
                     alt_download_link = parser.get_alt_download_link()
                     alt_filename = util.combine_filename(filename_new, parser.get_filename_extension(alt_download_link))
-                    self.download_artwork(alt_filename, alt_download_link)
+                    if alt_download_link != download_link:
+                        self.download_artwork(alt_filename, alt_download_link)
                     parser.get_description(filename_new)
                     
 
@@ -312,5 +322,19 @@ class Scraper(object):
         title = parser.get_title()
         if title == 'System Error':
             return False
+        if title == 'FA -- Fur Affinity [dot] net':
+            return False
         else:
             return True
+    def interval_update(self, parser):
+        """
+        check if interval can speed up or needs to slow down
+        """
+        aru = parser.get_registered_users_online()
+        if self.scrapy_interval_variable is True:
+            if aru >= 10000 and self.scrapy_interval != self.scrapy_interval_start:
+                self.scrapy_interval = self.scrapy_interval_start
+                logger.info("Over 10,000 registered users online. Scrappy interval changed to %ss.", self.scrapy_interval_start)
+            elif aru < 10000 and self.scrapy_interval != 0:
+                self.scrapy_interval = 0
+                logger.info("Less than 10,000 registered users online. Scrappy interval changed to 0s.")

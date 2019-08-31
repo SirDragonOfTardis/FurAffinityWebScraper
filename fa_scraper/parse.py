@@ -665,3 +665,13 @@ website.
         title = title.text
         logger.info('title is "%s"' % title)
         return title
+
+    def get_registered_users_online(self):
+        try:
+            c = self.bs.find_all('b',string="registered")[-1].previous_element
+            v = "".join(re.findall(r'\d', str(c)))
+            r = int(v)
+            return r
+        except:
+            logger.debug("number of registered users not returned. using 10,000")
+            return 10000
