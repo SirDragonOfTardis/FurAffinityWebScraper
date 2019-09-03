@@ -34,32 +34,35 @@ class Scraper(object):
         # use quote to deal with arabic/... url, safe ':/' is needed
         url = quote(url, safe = ':/')
         attempts = 0
-        while attempts < 5:
+        while attempts < 15:
             try:
                 # timeout is necessary here
                 response = self.scraper.get(url, timeout = 60, cookies = self.cookies)
                 # when succesful sets attempts to 6
-                attempts = 6
 
+                # checks response's status code
+                if response.status_code == 200:
+                    # successful response
+                    logger.debug('received response from "%s".' % url)
+                    attempts = 6
+                    # add sleep here to avoid ddos to website
+                    time.sleep(self.scrapy_interval)
+                    return response.content
+                elif response.status_code == 503:
+                    # try again but a bit slower this time
+                    logger.warning('request sent to "%s" returned error code: %u.' % (url, response.status_code))
+                    time.sleep(1)
+                else:
+                    logger.warning('request sent to "%s" returned error code: %u.' % (url, response.status_code))
+                    time.sleep(1)
+                attempts += 1
+                continue
             except:
                 # catch all Exceptions here
                 attempts += 1
                 logger.warning('error when sending request to "%s". attempt %s' % (url, attempts))
                 continue
 
-            # checks response's status code
-            if response.status_code == 200:
-                logger.debug('received response from "%s".' % url)
-            elif response.status_code == 503:
-                logger.warning('request sent to "%s" returned error code: %u.' % (url, response.status_code))
-                continue
-            else:
-                logger.warning('request sent to "%s" returned error code: %u.' % (url, response.status_code))
-
-            # add sleep here to avoid ddos to website
-            time.sleep(self.scrapy_interval)
-
-            return response.content
 
     def get_scrapying_url(self):
         # get next url to be scrapied from instance's scrapying queue
@@ -185,7 +188,7 @@ class Scraper(object):
 
                 # for view, parse attributes and then try to download image
                 attributes = parser.get_artwork_attributes()
-				# clean filename
+                # clean filename
                 
                 filename_new = parser.get_filename()
 
