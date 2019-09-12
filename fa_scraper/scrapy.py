@@ -2,6 +2,7 @@ from urllib.parse import quote
 
 import requests
 import cfscrape
+import random
 
 from fa_scraper import parse
 from fa_scraper import util
@@ -34,6 +35,8 @@ class Scraper(object):
         # use quote to deal with arabic/... url, safe ':/' is needed
         url = quote(url, safe = ':/')
         attempts = 0
+        delay = float(self.scrapy_interval) + random.random()
+        longDelay = random.randint(30,70)
         while attempts < 15:
             try:
                 # timeout is necessary here
@@ -44,23 +47,25 @@ class Scraper(object):
                 if response.status_code == 200:
                     # successful response
                     logger.debug('received response from "%s".' % url)
-                    attempts = 6
+                    attempts = 15
                     # add sleep here to avoid ddos to website
-                    time.sleep(self.scrapy_interval)
+                    time.sleep(delay)
                     return response.content
                 elif response.status_code == 503:
                     # try again but a bit slower this time
                     logger.warning('request sent to "%s" returned error code: %u.' % (url, response.status_code))
-                    time.sleep(1)
+                    time.sleep(longDelay)
+                    continue
                 else:
                     logger.warning('request sent to "%s" returned error code: %u.' % (url, response.status_code))
-                    time.sleep(1)
+                    time.sleep(longDelay)
                 attempts += 1
                 continue
             except:
                 # catch all Exceptions here
                 attempts += 1
                 logger.warning('error when sending request to "%s". attempt %s' % (url, attempts))
+                time.sleep(longDelay)
                 continue
 
 
