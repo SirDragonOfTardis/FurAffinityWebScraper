@@ -3,6 +3,7 @@ from urllib.parse import quote
 import requests
 import cfscrape
 import random
+import hashlib
 
 from fa_scraper import parse
 from fa_scraper import util
@@ -35,7 +36,7 @@ class Scraper(object):
         # use quote to deal with arabic/... url, safe ':/' is needed
         url = quote(url, safe = ':/')
         attempts = 0
-        delay = float(self.scrapy_interval) + random.random()
+        delay = float(self.scrapy_interval) + float(random.randrange(1,3)/10)
         longDelay = random.randint(30,70)
         while attempts < 15:
             try:
@@ -56,6 +57,10 @@ class Scraper(object):
                     logger.warning('request sent to "%s" returned error code: %u.' % (url, response.status_code))
                     time.sleep(longDelay)
                     continue
+                elif response.status_code == 404:
+                    # try again but a bit slower this time
+                    logger.warning('request sent to "%s" returned error code: %u.' % (url, response.status_code))
+                    time.sleep(delay)
                 else:
                     logger.warning('request sent to "%s" returned error code: %u.' % (url, response.status_code))
                     time.sleep(longDelay)
@@ -92,7 +97,7 @@ class Scraper(object):
         # wrapper that add url to instance's scrapied set
         self.scrapied_set.add(url)
 
-    def __init__(self, scrapy_interval, cookies = {}, begin_url = None, starting_id = 1, id_mode = 'false'):
+    def __init__(self, scrapy_interval, cookies = {}, begin_url = None, starting_id = 1, stopId = 0, id_mode = 'false'):
         # initialize scrapied set and scrapying queue
         self.scrapied_set = set()
         self.scrapying_queue = collections.deque()
@@ -102,6 +107,7 @@ class Scraper(object):
         self.scrapy_interval_start = scrapy_interval
         logger.info('set scrapy interval to %d' % scrapy_interval)
 
+        # change delay based on site traffic
         self.scrapy_interval_variable = True
 
         self.sub_folders = sub_folders
@@ -119,6 +125,7 @@ class Scraper(object):
         # use cfscrape to avoid block from cloudflare
         self.scraper = cfscrape.create_scraper()
 
+        self.stopId = stopId
         self.starting_id = starting_id
         self.id_mode = id_mode
 
@@ -179,7 +186,7 @@ class Scraper(object):
 
             # initalize parser according to url type
             # add exception for id mode
-            parser = parse.ArtworkParser(html, url, self.id_mode, self.starting_id) if url_type == 'view' else parse.Parser(html, url, self.id_mode, self.starting_id)
+            parser = parse.ArtworkParser(html, url, self.id_mode, self.starting_id, self.stopId) if url_type == 'view' else parse.Parser(html, url, self.id_mode, self.starting_id, self.stopId)
 
 
             # retrieve urls and add them to instance's scrapying queue
@@ -219,14 +226,14 @@ class Scraper(object):
                         alt_filename = util.combine_filename(filename_new, parser.get_filename_extension(alt_download_link))
                         if alt_download_link != download_link:
                             self.download_artwork(alt_filename, alt_download_link)
-                        parser.get_description(filename_new)
+                        parser.save_description(filename_new)
                 elif self.description_arg == 'all':
                     logger.debug('Downloading alt link and Description.')
                     alt_download_link = parser.get_alt_download_link()
                     alt_filename = util.combine_filename(filename_new, parser.get_filename_extension(alt_download_link))
                     if alt_download_link != download_link:
                         self.download_artwork(alt_filename, alt_download_link)
-                    parser.get_description(filename_new)
+                    parser.save_description(filename_new)
                     
 
                 if self.download_artwork(filename, download_link):
@@ -300,11 +307,21 @@ class Scraper(object):
             logger.warning('failed to download image "%s".' % filename)
             return False
         try:
+            # See if data is not default image
+            md5_failed = False
+            md5_returned = hashlib.md5(data).hexdigest()
+            md5_story_default = 'a4a6d1c090e7f06b7b97bb2a01865cfa'
+            md5_music_default = '68443c527e3b3ab118c1125b7d68bbbc'
+            if md5_returned == md5_story_default or md5_returned == md5_music_default:
+                logger.warning('Image not saved. md5 matched default story or music md5.')
+                md5_failed = True
+
             # saves content to file
-            with open('images/' + filename, 'wb') as image:
-                image.write(data)
-                logger.info('image "%s" downloaded.' % filename)
-                return True
+            if md5_failed is False:
+                with open('images/' + filename, 'wb') as image:
+                    image.write(data)
+                    logger.info('image "%s" downloaded.' % filename)
+                    return True
         except EnvironmentError:
             # occurs error when saving image
             logger.warning('error when saving image "%s".' % filename)

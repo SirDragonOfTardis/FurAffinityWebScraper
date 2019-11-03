@@ -147,6 +147,16 @@ def parse_arguments():
         help = 'specifies the id to start downloading from when id-mode is true'
     )
 
+    # stop-id
+    # specifies the id to stop downloading from when id-mode is true
+    argparser.add_argument(
+        '--stop-id',
+        nargs = 1,
+        default = [0],
+        type = int,
+        help = 'specifies the id to stop downloading from when id-mode is true'
+    )
+
     arguments = argparser.parse_args()
     return arguments
 
@@ -284,6 +294,11 @@ if __name__ == '__main__':
             # alternate starting id
             startingId = arguments.starting_id[0]
 
+        stopId = 0
+        if arguments.stop_id:
+            # alternate stop id
+            stopId = arguments.stop_id[0]
+
         id_mode = 'false'
         if arguments.id_mode:
             # use id mode?
@@ -292,7 +307,7 @@ if __name__ == '__main__':
         if id_mode == 'false':
             scraper = scrapy.Scraper(arguments.scrapy_interval[0], cookies, begin_url)
         elif id_mode == 'true':
-            scraper = scrapy.Scraper(arguments.scrapy_interval[0], cookies, begin_url, startingId, id_mode)
+            scraper = scrapy.Scraper(arguments.scrapy_interval[0], cookies, begin_url, startingId, stopId, id_mode)
         else:
             logger.error('arg id mode is neither true nor false')
 

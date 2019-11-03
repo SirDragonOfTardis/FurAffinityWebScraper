@@ -53,7 +53,7 @@ class Parser(object):
         logger.warning('unknown url type from url: %s.' % url)
         return 'unknown'
 
-    def __init__(self, html, url, id_mode = 'false', startingid = 1):
+    def __init__(self, html, url, id_mode = 'false', startingid = 1, stopId = 0):
         # lazy load, trying to generate compiled regex table when the first
         # instance initialized.
         if not Parser.URL_REGEX_TABLE:
@@ -66,6 +66,7 @@ class Parser(object):
 
         self.idMode = id_mode
         self.startId = startingid
+        self.stopId = stopId
         
         self.resume_on_user = resume_on_user
 
@@ -190,9 +191,10 @@ class Parser(object):
                 nextId = initialId + 1
                 startingurl = '/view/' + str(currentId)
                 urls.insert(0, startingurl)
-            elif currentId > initialId:
-                url_count = 2
-                nextId = currentId + 1
+            elif currentId > initialId and self.stopId != 0:
+                if currentId <= self.stopId:
+                    url_count = 2
+                    nextId = currentId + 1
             else:
                 url_count = 1
                 logger.warning("No valid next ID")
@@ -302,7 +304,7 @@ website.
                          'tag to None.')
         logger.debug('parsed tags used to retrieve artwork attribute.')
 
-    def __init__(self, html, url, id_mode = 'false', startingid = 1):
+    def __init__(self, html, url, id_mode = 'false', startingid = 1, stopId = 0):
         # lazy load similar to Parser, will compile regex for only once
         if not ArtworkParser.REGEX_TABLE:
             ArtworkParser.generate_regex_table()
@@ -316,6 +318,7 @@ website.
 
         self.idMode = id_mode
         self.startId = startingid
+        self.stopId = stopId
 
         logger.debug('artwork parser initialized.')
 
@@ -336,11 +339,11 @@ website.
             object_tag = self.bs.find('object', {'id':'flash_embed'})
             if image_tag and image_tag.has_attr('src'):
                 download_link = 'https:' + image_tag['src']
-                logger.info('retrieved download link - "%s".' % download_link)
+                logger.info('retrieved download link - "%s"' % download_link)
             # looks for .swf
             elif object_tag and object_tag.has_attr('data'):
                 download_link = 'https:' + object_tag['data']
-                logger.info('retrieved download link - "%s".' % download_link)
+                logger.info('retrieved download link - "%s"' % download_link)
             else:
                 logger.info('unable to retrieve download link.')
             return download_link
@@ -353,11 +356,11 @@ website.
         or if submission is a flash or music
         """
         try:
-            self.category = self.bs.find('b', text='Category:').next_sibling
-            logger.debug('Category found = %s' % self.category)
+            category = self.bs.find('b', text='Category:').next_sibling
+            logger.debug('Category found = %s' % category)
             # for getting title of submission
-            self.posted_title = self.get_posted_title()
-            logger.debug('Title = %s' % self.posted_title)
+            posted_title = self.get_posted_title()
+            logger.debug('Title = %s' % posted_title)
             # for checking the description
             desc_table = self.bs.findAll('table', {'class': 'maintable'})[1]
             desc_row = desc_table.findAll('tr')[2]
@@ -365,10 +368,10 @@ website.
             desc = str(desc_row)
             if DESCRIPTION_KEYWORDS:
                 for keyword in DESCRIPTION_KEYWORDS:
-                    if keyword.lower() in self.category.lower():
+                    if keyword.lower() in category.lower():
                         logger.debug('Matched category to %s' % keyword)
                         return True
-                    elif keyword.lower() in self.posted_title.lower():
+                    elif keyword.lower() in posted_title.lower():
                         logger.debug('Matched %s in title' % keyword)
                         return True
                     elif keyword.lower() in desc.lower():
@@ -395,17 +398,18 @@ website.
         Gets filename to save the post as.
         """
         try:
-            self.stats_tag = self.bs.find('td', {'class': 'alt1 stats-container'})
-            self.posted_title = self.get_posted_title()
-            self.posted_time = self.get_posted_time()
-            filename = "%s %s" %(self.posted_time,self.posted_title)
+            #TODO optional filename format
+            stats_tag = self.bs.find('td', {'class': 'alt1 stats-container'})
+            posted_title = self.get_posted_title()
+            posted_time = self.get_posted_time()
+            filename = "%s %s" %(posted_time,posted_title)
             filename = filename.replace('/'," ,' ")
             filename = re.sub(r'[\\/*?:"<>|]',"",filename)
             return filename
         except:
             filename = 'error'
 
-    def get_description(self, filename):
+    def save_description(self, filename):
         """
         returns the table containing tags and description
         """
@@ -429,27 +433,26 @@ website.
                 return True
         except:
             return False
-        return desc
     
     def get_artist(self):
         try:
-            self.td_title_by_artist = self.bs.find('div', {'class': 'classic-submission-title information'})
-            self.artist_url = self.td_title_by_artist.find('a')
-            self.artist = self.artist_url.contents[0]
-            return self.artist
+            td_title_by_artist = self.bs.find('div', {'class': 'classic-submission-title information'})
+            artist_url = td_title_by_artist.find('a')
+            artist = artist_url.contents[0]
+            return artist
         except:
             #TODO pause on exeption
             return '_user_unknown_'
 
     def get_tag(self, tag):
         try:
-            self.category = self.bs.find('td', {'class':'alt1 stats-container'})
-            for index, content in enumerate( self.category.contents, start=0):
-                if self.category.contents[index].string == tag:
+            category = self.bs.find('td', {'class':'alt1 stats-container'})
+            for index, content in enumerate( category.contents, start=0):
+                if category.contents[index].string == tag:
                     tag_index = index + 1
-                    self.category_tag = self.category.contents[tag_index].string
-                    logger.debug(tag + " " + self.category_tag)
-                    return self.category_tag
+                    category_tag = category.contents[tag_index].string
+                    logger.debug(tag + " " + category_tag)
+                    return category_tag
         except:
             logger.info("Category tag not found.")
 
@@ -486,25 +489,25 @@ website.
     def get_id(self):
         try:
             if self.url.find('/view/') != -1:
-                id = self.url.split('/view/',1)[1]
-                if '/' in id:
-                    id = id.split('/',1)[0]
-                logger.debug("post id = " + id)
-                return id
+                submissionid = self.url.split('/view/',1)[1]
+                if '/' in submissionid:
+                    submissionid = submissionid.split('/',1)[0]
+                logger.debug("post id = " + submissionid)
+                return submissionid
             elif self.url.find('/full/') != -1:
-                id = self.url.split('/full/',1)[1]
-                if '/' in id:
-                    id = id.split('/',1)[0]
-                logger.debug("post id = " + id)
-                return id
+                submissionid = self.url.split('/full/',1)[1]
+                if '/' in submissionid:
+                    submissionid = submissionid.split('/',1)[0]
+                logger.debug("post id = " + submissionid)
+                return submissionid
         except:
             logger.debug("id not returned")
 
     def get_maturity_rating(self):
         try:
-            self.rating = self.bs.find('meta', {'name', 'twitter:data2'})
-            self.rating = self.rating['content']
-            logger.debug("Content Rating is: " + self.rating)
+            rating = self.bs.find('meta', {'name', 'twitter:data2'})
+            rating = rating['content']
+            logger.debug("Content Rating is: " + rating)
         except:
             logger.debug("Content Rating not found")
             return 'Unknown'
@@ -512,11 +515,11 @@ website.
     def get_posted_time(self): # something needs to change
         # get posted time from meta content
         try:
-            self.posted_time = self.stats_tag.find('span', {'class': 'popup_date'}).string
-            logger.debug("Posted time is: " + self.posted_time)
-            self.posted_time = util.parse_datetime(self.posted_time)
-            self.posted_time = self.posted_time.strftime("%Y-%m-%d_%H-%M")
-            return self.posted_time
+            posted_time = self.stats_tag.find('span', {'class': 'popup_date'}).string
+            logger.debug("Posted time is: " + posted_time)
+            posted_time = util.parse_datetime(posted_time)
+            posted_time = posted_time.strftime("%Y-%m-%d_%H-%M")
+            return posted_time
         except:
             return 
 
@@ -524,8 +527,12 @@ website.
         # get posted time from posted_tag
         # returns "title by artist"
         try:
-            self.posted_titlename = self.bs.find('meta', {'property': 'og:title'})
-            return self.posted_titlename['content']
+            # t is title
+            t = self.bs.find('meta', {'property': 'og:title'})
+            t = t['content']
+            t = unicodedata.normalize('NFKD', t)
+            t = (t.encode('ascii','ignore')).decode('utf-8')
+            return t
         except:
             logger.info("No title found for post. using '_no title_")
             return '_no title_'
@@ -541,7 +548,7 @@ website.
     def format_resolution(resolution):
         # convert from resolution like "1920x1080" to a attribute dictionary
         resolution = resolution.split('x')
-        if (len(resolution) >= 2):
+        if len(resolution) >= 2:
             # convert string to int here
             formatted_resolution = {'Width'     : int(resolution[0]),
                                     'Height'    : int(resolution[1])}
@@ -652,8 +659,8 @@ website.
             if not len(match.group(1)) > 4:
                 return match.group(1)
             else:
-                logger.warning('Did not retrieve filename extention. Using JPG extension. Be sure to check file.')
-                return 'jpg'
+                logger.warning('Did not retrieve filename extention. Using unknown_ext extension. Be sure to check file.')
+                return 'unknown_ext'
 
     @staticmethod
     def view_to_full(url):
