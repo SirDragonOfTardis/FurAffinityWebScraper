@@ -154,7 +154,7 @@ class Scraper(object):
 
             main_html = self.open_url(url)
             if main_html:
-                parser = parse.Parser(main_html, url, self.id_mode, self.starting_id)
+                parser = parse.Parser(main_html, url, self.id_mode, self.starting_id, self.stopId)
                 sites = parser.get_all_urls()
                 self.add_unscrapied_urls(sites)
                 logger.debug('begin url %s scrapied.' % url)

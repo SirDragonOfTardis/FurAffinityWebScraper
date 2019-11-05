@@ -341,7 +341,7 @@ if __name__ == '__main__':
 
                 # insert into database
                 db.insert_or_replace_artwork(artwork)
-                logger.info('completed to scrapy artwork with ID: %u.' % artwork.get('ID'))
+                logger.info('completed to scrapy artwork with ID: {:,}'.format(artwork.get('ID')))
             else:
                 logger.info('didn\'t scrapy artwork in current round.')
     elif scrapy_mode == 'update':

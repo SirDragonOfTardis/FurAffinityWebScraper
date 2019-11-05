@@ -182,28 +182,37 @@ class Parser(object):
             initialId = self.startId
 
             # get current id
-            currentId = int(re.search(r'\d+', self.url).group())
+            currentId: int = int(re.search(r'\d+', self.url).group())
 
-            if initialId < 1:
+            nextId = 0
+            if currentId < initialId:
+                logger.error("currentId cannot be less than initialId. How did you do this?")
+            elif self.stopId < initialId and self.stopId != 0:
+                logger.error("stopId can NOT be smaller than initialId. Please make sure that both are correct.")
+            elif initialId < 1:
                 logger.error("inital ID can not be less than 1.")
             elif currentId == initialId:
                 url_count = 2
                 nextId = initialId + 1
                 startingurl = '/view/' + str(currentId)
                 urls.insert(0, startingurl)
-            elif currentId > initialId and self.stopId != 0:
-                if currentId <= self.stopId:
-                    url_count = 2
-                    nextId = currentId + 1
+            # no stopId
+            elif self.stopId == 0:
+                url_count = 2
+                nextId = currentId + 1
+            # stopId
+            elif self.stopId != 0 and currentId < self.stopId:
+                url_count = 2
+                nextId = currentId + 1
             else:
                 url_count = 1
                 logger.warning("No valid next ID")
 
-            if nextId is not None:
+            if nextId != 0:
                 nexturl = '/view/' + str(nextId)
+                # add next url
+                urls.insert(0, nexturl)
 
-            # add next url
-            urls.insert(0, nexturl)
             logger.info("retrieved %u available urls." % url_count)
 
         else:
