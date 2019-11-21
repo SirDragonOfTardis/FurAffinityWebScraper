@@ -86,11 +86,21 @@ class Scraper(object):
     def add_unscrapied_urls(self, urls):
         # add urls to instance's scrapying queue
         url_count = 0
-        for url in urls:
-            # check if url has been scrapied here
-            if not url in self.scrapied_set:
-                self.scrapying_queue.append(url)
-                url_count = url_count + 1
+        if self.id_mode == 'false':
+            for url in urls:
+                # check if url has been scrapied here
+                if not url in self.scrapied_set:
+                   self.scrapying_queue.append(url)
+                   url_count = url_count + 1
+        # temp patch for http 500 error. clear and repop queue with 2 or more pages every time.
+        elif self.id_mode == 'true':
+            self.scrapying_queue.clear()
+            for url in urls:
+                # check if url has been scrapied here
+                if not url in self.scrapied_set:
+                    self.scrapying_queue.append(url)
+                    url_count = url_count + 1
+
         logger.info('added %d urls to unscrapied queue.' % url_count)
 
     def add_scrapied_url(self, url):

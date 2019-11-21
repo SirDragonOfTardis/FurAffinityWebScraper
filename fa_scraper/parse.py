@@ -185,6 +185,8 @@ class Parser(object):
             currentId: int = int(re.search(r'\d+', self.url).group())
 
             nextId = 0
+            nextNextId = 0
+            # for initilization of id-mode
             if currentId < initialId:
                 logger.error("currentId cannot be less than initialId. How did you do this?")
             elif self.stopId < initialId and self.stopId != 0:
@@ -200,18 +202,25 @@ class Parser(object):
             elif self.stopId == 0:
                 url_count = 2
                 nextId = currentId + 1
+                nextNextId = currentId + 2
             # stopId
             elif self.stopId != 0 and currentId < self.stopId:
                 url_count = 2
                 nextId = currentId + 1
+                nextNextId = currentId + 2
             else:
                 url_count = 1
                 logger.warning("No valid next ID")
 
             if nextId != 0:
-                nexturl = '/view/' + str(nextId)
                 # add next url
+                nexturl = '/view/' + str(nextId)
                 urls.insert(0, nexturl)
+
+                # add next next url
+                if nextNextId != 0:
+                    nexturl = '/view/' + str(nextNextId)
+                    urls.insert(0, nexturl)
 
             logger.info("retrieved %u available urls." % url_count)
 
@@ -407,7 +416,7 @@ website.
         Gets filename to save the post as.
         """
         try:
-            #TODO optional filename format
+            #temp/default filename format
             stats_tag = self.bs.find('td', {'class': 'alt1 stats-container'})
             posted_title = self.get_posted_title()
             posted_time = self.get_posted_time()
@@ -415,6 +424,19 @@ website.
             filename = filename.replace('/'," ,' ")
             filename = re.sub(r'[\\/*?:"<>|]',"",filename)
             return filename
+
+            #TODO optional filename format
+            temp_name = '%Y-%m-%d_%H-%M {title} by {user}'
+
+            # add time
+            temp_time = self.stats_tag.find('span', {'class': 'popup_date'}).string
+            temp_time = util.parse_datetime(temp_time)
+            temp_name = posted_time.strftime(temp_name)
+
+            # insert title
+            if '{title}' in temp_name:
+                temp_name = 'poop'
+
         except:
             filename = 'error'
 

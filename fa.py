@@ -157,6 +157,16 @@ def parse_arguments():
         help = 'specifies the id to stop downloading from when id-mode is true'
     )
 
+    # auto-filenaming
+    # The File Naming scheme to use when saving content. Desccriptions saved with description at end of filename.
+    argparser.add_argument(
+        '--file-naming', '-fn',
+        nargs = 1,
+        type = str,
+        default = ['%Y-%m-%d_%H-%M {title} by {user}'],
+        help = 'The File Naming scheme to use when saving content. Desccriptions saved with description at end of filename.'
+    )
+
     arguments = argparser.parse_args()
     return arguments
 
@@ -288,6 +298,11 @@ if __name__ == '__main__':
         if arguments.begin_url:
             # alternative begin-url specified
             begin_url = arguments.begin_url[0]
+
+        fileNaming = '%Y-%m-%d_%H-%M {title} by {user}'
+        if arguments.file_naming:
+            # alternate file naming formate specified
+            fileNaming = arguments.file_naming[0]
 
         startingId = 1
         if arguments.starting_id:
