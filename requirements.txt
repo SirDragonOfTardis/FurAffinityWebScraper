@@ -8,5 +8,6 @@ PyExecJS>=1.5.1
 python-dateutil>=2.6.1
 requests>=2.18.4
 six>=1.11.0
-urllib3>=1.22
+urllib3<2
+unicodedata2>=11.0.0
 unicodedata2>=11.0.0

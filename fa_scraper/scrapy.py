@@ -4,22 +4,24 @@ import requests
 import cfscrape
 import random
 import hashlib
+import re
 
 from fa_scraper import parse
 from fa_scraper import util
 from fa_scraper.constant import *
 
 import logging
-logger = logging.getLogger('default')
-
 import json
 
 import collections
 
 import time
 
+logger = logging.getLogger('default')
+
+
 class Scraper(object):
-    SCRAPIED_BASE = False # lazy load technical, flag to indicate whether base url has been scrapied
+    SCRAPIED_BASE = False  # lazy load technical, flag to indicate whether base url has been scrapied
 
     def open_url(self, url):
         """
@@ -34,45 +36,46 @@ class Scraper(object):
         """
 
         # use quote to deal with arabic/... url, safe ':/' is needed
-        url = quote(url, safe = ':/')
+        url = quote(url, safe=':/')
         attempts = 0
-        delay = float(self.scrapy_interval) + float(random.randrange(1,3)/10)
-        longDelay = random.randint(30,70)
+        delay = float(self.scrapy_interval) + float(random.randrange(1, 3) / 10)
+        long_delay = random.randint(30, 70)
         while attempts < 15:
             try:
                 # timeout is necessary here
-                response = self.scraper.get(url, timeout = 60, cookies = self.cookies)
+                response = self.scraper.get(url, timeout=60, cookies=self.cookies)
+
                 # when succesful sets attempts to 6
 
                 # checks response's status code
                 if response.status_code == 200:
                     # successful response
-                    logger.debug('received response from "%s".' % url)
+                    logger.info('received response from "%s".' % url)
                     attempts = 15
                     # add sleep here to avoid ddos to website
                     time.sleep(delay)
                     return response.content
                 elif response.status_code == 503:
                     # try again but a bit slower this time
-                    logger.warning('request sent to "%s" returned error code: %u.' % (url, response.status_code))
-                    time.sleep(longDelay)
+                    logger.error('request sent to "%s" returned error code: %u.' % (url, response.status_code))
+                    time.sleep(long_delay)
                     continue
                 elif response.status_code == 404:
                     # try again but a bit slower this time
                     logger.warning('request sent to "%s" returned error code: %u.' % (url, response.status_code))
+                    attempts = 15
                     time.sleep(delay)
                 else:
-                    logger.warning('request sent to "%s" returned error code: %u.' % (url, response.status_code))
-                    time.sleep(longDelay)
+                    logger.error('request sent to "%s" returned error code: %u.' % (url, response.status_code))
+                    time.sleep(long_delay)
                 attempts += 1
                 continue
             except:
                 # catch all Exceptions here
                 attempts += 1
-                logger.warning('error when sending request to "%s". attempt %s' % (url, attempts))
-                time.sleep(longDelay)
+                logger.error('error when sending request to "%s". attempt %s' % (url, attempts))
+                time.sleep(long_delay)
                 continue
-
 
     def get_scrapying_url(self):
         # get next url to be scrapied from instance's scrapying queue
@@ -90,8 +93,8 @@ class Scraper(object):
             for url in urls:
                 # check if url has been scrapied here
                 if not url in self.scrapied_set:
-                   self.scrapying_queue.append(url)
-                   url_count = url_count + 1
+                    self.scrapying_queue.append(url)
+                    url_count = url_count + 1
         # temp patch for http 500 error. clear and repop queue with 2 or more pages every time.
         elif self.id_mode == 'true':
             self.scrapying_queue.clear()
@@ -100,14 +103,14 @@ class Scraper(object):
                 if not url in self.scrapied_set:
                     self.scrapying_queue.append(url)
                     url_count = url_count + 1
-
         logger.info('added %d urls to unscrapied queue.' % url_count)
 
     def add_scrapied_url(self, url):
         # wrapper that add url to instance's scrapied set
         self.scrapied_set.add(url)
 
-    def __init__(self, scrapy_interval, cookies = {}, begin_url = None, starting_id = 1, stopId = 0, id_mode = 'false'):
+    def __init__(self, scrapy_interval, cookies, begin_url=None, starting_id=1, stop_id=0, id_mode='false',
+                 description_arg='none'):
         # initialize scrapied set and scrapying queue
         self.scrapied_set = set()
         self.scrapying_queue = collections.deque()
@@ -120,7 +123,11 @@ class Scraper(object):
         # change delay based on site traffic
         self.scrapy_interval_variable = True
 
+        # Add sub folders from FA such as scrap folder and other custom folders
+
+        # Sub folders for saving files
         self.sub_folders = sub_folders
+
         self.description_arg = description_arg
 
         # set cookies if provided
@@ -135,10 +142,9 @@ class Scraper(object):
         # use cfscrape to avoid block from cloudflare
         self.scraper = cfscrape.create_scraper()
 
-        self.stopId = stopId
+        self.stopId = stop_id
         self.starting_id = starting_id
         self.id_mode = id_mode
-
         logger.debug('scraper initialized.')
 
     def scrapy_pending_url(self):
@@ -152,8 +158,7 @@ class Scraper(object):
             attributes - attributes dictionary of current artwork, None if scrapied
         url isn't of type view or error occurs
         """
-
-        # lazy load technical, scrapy base url if hasn't
+        # lazy load technical, scrapy base url if it hasn't
         if not Scraper.SCRAPIED_BASE:
 
             if self.id_mode == 'false':
@@ -178,7 +183,7 @@ class Scraper(object):
         elif url in self.scrapied_set:
             logger.debug('url has been scrapied.')
             return None
-        origin_url = url # backup origin url
+        origin_url = url  # backup origin url
 
         # get url type, skip this round if unknown
         url_type = parse.Parser.get_url_type(url)
@@ -196,8 +201,10 @@ class Scraper(object):
 
             # initalize parser according to url type
             # add exception for id mode
-            parser = parse.ArtworkParser(html, url, self.id_mode, self.starting_id, self.stopId) if url_type == 'view' else parse.Parser(html, url, self.id_mode, self.starting_id, self.stopId)
-
+            parser = parse.ArtworkParser(html, url, self.id_mode, self.starting_id,
+                                         self.stopId) if url_type == 'view' else parse.Parser(html, url, self.id_mode,
+                                                                                              self.starting_id,
+                                                                                              self.stopId)
 
             # retrieve urls and add them to instance's scrapying queue
             urls = parser.get_all_urls()
@@ -205,13 +212,13 @@ class Scraper(object):
 
             if url_type == 'view' and self.view_status(parser) is True:
                 # update interval speed
-                #if self.var_interval == True
+                # if self.var_interval == True
                 self.interval_update(parser)
 
                 # for view, parse attributes and then try to download image
                 attributes = parser.get_artwork_attributes()
                 # clean filename
-                
+
                 filename_new = parser.get_filename()
 
                 subfolder_setting = self.sub_folders
@@ -219,21 +226,25 @@ class Scraper(object):
                     subdir = self.create_sub_directory_and_return_string(parser, subfolder_setting)
                     filename_new = subdir + '/' + filename_new
 
+                # debug
+                # parser.get_tag_category()
+
                 download_link = parser.get_download_link()
                 # TODO: filter will be added here
-                #if download_link and attributes['Category'] in SCRAPIED_CATEGORIES:
-                    # set ID
+                # if download_link and attributes['Category'] in SCRAPIED_CATEGORIES:
+                # set ID
                 ID = self.get_artwork_id(url)
                 attributes['ID'] = int(ID)
-                
+
                 filename = util.combine_filename(filename_new, parser.get_filename_extension(download_link))
-                
+
                 if self.description_arg == 'some':
                     get_alt_and_description = parser.get_alt_and_description()
                     if get_alt_and_description is True:
                         logger.debug('Downloading alt link and Description.')
                         alt_download_link = parser.get_alt_download_link()
-                        alt_filename = util.combine_filename(filename_new, parser.get_filename_extension(alt_download_link))
+                        alt_filename = util.combine_filename(filename_new,
+                                                             parser.get_filename_extension(alt_download_link))
                         if alt_download_link != download_link:
                             self.download_artwork(alt_filename, alt_download_link)
                         parser.save_description(filename_new)
@@ -241,10 +252,8 @@ class Scraper(object):
                     logger.debug('Downloading alt link and Description.')
                     alt_download_link = parser.get_alt_download_link()
                     alt_filename = util.combine_filename(filename_new, parser.get_filename_extension(alt_download_link))
-                    if alt_download_link != download_link:
-                        self.download_artwork(alt_filename, alt_download_link)
+                    self.download_artwork(alt_filename, alt_download_link)
                     parser.save_description(filename_new)
-                    
 
                 if self.download_artwork(filename, download_link):
                     # download succeed
@@ -276,18 +285,18 @@ class Scraper(object):
             attributes = parser.get_artwork_attributes()
             return attributes
         else:
-            logger.info('failed to scrapy expired url %s.' % url)
-            
+            logger.error('failed to scrapy expired url %s.' % url)
+
     def create_sub_directory_and_return_string(self, parser, subfolder_setting):
         """
         Checks args for setting up subdirectory and return dir as string.
         """
-        artist = parser.get_artist() 
+        artist = parser.get_artist()
         posted_time = parser.stats_tag.find('span', {'class': 'popup_date'}).string
         posted_time = util.parse_datetime(posted_time)
         subdir = subfolder_setting
         if '{artist}' in subfolder_setting:
-            subdir = subdir.replace('{artist}',artist)
+            subdir = subdir.replace('{artist}', artist)
         subdir = posted_time.strftime(subdir)
         logger.debug('Saving in ' + subdir)
         util.create_sub_directory(subdir)
@@ -314,7 +323,7 @@ class Scraper(object):
         data = self.open_url(download_link)
         if not data:
             # response is empty
-            logger.warning('failed to download image "%s".' % filename)
+            logger.error('failed to download image "%s".' % filename)
             return False
         try:
             # See if data is not default image
@@ -325,16 +334,17 @@ class Scraper(object):
             if md5_returned == md5_story_default or md5_returned == md5_music_default:
                 logger.warning('Image not saved. md5 matched default story or music md5.')
                 md5_failed = True
-
             # saves content to file
             if md5_failed is False:
                 with open('images/' + filename, 'wb') as image:
                     image.write(data)
+
                     logger.info('image "%s" downloaded.' % filename)
                     return True
-        except EnvironmentError:
+        except EnvironmentError as Argument:
             # occurs error when saving image
-            logger.warning('error when saving image "%s".' % filename)
+            logger.error('error when saving image "%s".' % filename)
+            logger.error(str(Argument))
             return False
 
     def download_description(self, filename, desc):
@@ -361,6 +371,7 @@ class Scraper(object):
             return False
         else:
             return True
+
     def interval_update(self, parser):
         """
         check if interval can speed up or needs to slow down
@@ -369,7 +380,8 @@ class Scraper(object):
         if self.scrapy_interval_variable is True:
             if aru >= 10000 and self.scrapy_interval != self.scrapy_interval_start:
                 self.scrapy_interval = self.scrapy_interval_start
-                logger.info("Over 10,000 registered users online. Scrappy interval changed to %ss.", self.scrapy_interval_start)
+                logger.info("Over 10,000 registered users online. Scrappy interval changed to %ss.",
+                            self.scrapy_interval_start)
             elif aru < 10000 and self.scrapy_interval != 0:
                 self.scrapy_interval = 0
                 logger.info("Less than 10,000 registered users online. Scrappy interval changed to 0s.")

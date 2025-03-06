@@ -7,8 +7,8 @@ BASE_URL = 'https://www.furaffinity.net'
 URL_TYPES = ['view', 'msg', 'msg/submissions', 'watchlist', 'gallery', 'scraps']
 
 # categories that are scrapied by scaper
-SCRAPIED_CATEGORIES = set(['Artwork (Digital)', 'All', 'Cellshading'])
+SCRAPIED_CATEGORIES = {'Artwork (Digital)', 'All', 'Cellshading'}
 
 # keywords to check for when downloading a description
-# case is ignored..
+# case is ignored.
 DESCRIPTION_KEYWORDS = ['story', 'chapter', 'music', 'flash', 'animation']

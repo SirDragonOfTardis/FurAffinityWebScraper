@@ -3,6 +3,7 @@ import sqlite3
 from fa_scraper import util
 
 import logging
+
 logger = logging.getLogger('default')
 
 
@@ -13,6 +14,7 @@ class Database(object):
     Attributes:
         conn - connected object of database
     """
+
     def create_artwork_table(self):
         """
         Creates artwork table if it not exists.
@@ -87,11 +89,11 @@ class Database(object):
     def attribute_dictionary_to_tuple(artwork):
         # given artwork dictionary, convert it to tuple using get ranther than []
         return (artwork.get('ID'), artwork.get('Name'), artwork.get('Width'),
-        artwork.get('Height'), artwork.get('Author'), artwork.get('Posted'),
-        artwork.get('Category'), artwork.get('Theme'), artwork.get('Species'),
-        artwork.get('Gender'), artwork.get('Favorites'), artwork.get('Comments'),
-        artwork.get('Views'), artwork.get('Adult'), artwork.get('Keywords'),
-        artwork.get('Added'))
+                artwork.get('Height'), artwork.get('Author'), artwork.get('Posted'),
+                artwork.get('Category'), artwork.get('Theme'), artwork.get('Species'),
+                artwork.get('Gender'), artwork.get('Favorites'), artwork.get('Comments'),
+                artwork.get('Views'), artwork.get('Adult'), artwork.get('Keywords'),
+                artwork.get('Added'))
 
     def insert_or_replace_artwork(self, artwork):
         """
@@ -124,8 +126,8 @@ class Database(object):
         cursor = self.conn.cursor()
         cursor.execute('SELECT ID FROM ARTWORK')
 
-        artwork_ids = list(map(lambda x : x.__getitem__(0), cursor.fetchall()))
-# use map to get all ids from returned one-element tuples' list
+        artwork_ids = list(map(lambda x: x.__getitem__(0), cursor.fetchall()))
+        # use map to get all ids from returned one-element tuples list
         logger.debug('%u artworks retrieved from database.' % len(artwork_ids))
         return artwork_ids
 
@@ -142,14 +144,14 @@ class Database(object):
             self.conn.execute('DELETE FROM ARTWORK WHERE ID = ?', (artwork_id,))
             delete_count = delete_count + 1
 
-        self.conn.commit() # will not call commit repeatedly
+        self.conn.commit()  # will not call commit repeatedly
         logger.debug('%u artwork records deleted from database.' % delete_count)
 
     @staticmethod
     def if_time_expired(id_time_tuple, current_time, expire_time):
         # given (id, added_time), current time and expire time
         # returns True if expired
-        # or False if hasn't expired
+        # or False if it hasn't expired
         if (util.parse_datetime(id_time_tuple[1]) - util.parse_datetime(current_time)) >= expire_time * 86400:
             return True
         else:
@@ -172,8 +174,8 @@ class Database(object):
         current_time = util.get_current_time()
 
         # use filter and map to simplify code
-        expired_records = filter(lambda t : self.if_time_expired(t, current_time, expire_time), cursor.fetchall())
-        expired_artwork_ids = list(map(lambda x : x.__getitem__(0), expired_records))
+        expired_records = filter(lambda t: self.if_time_expired(t, current_time, expire_time), cursor.fetchall())
+        expired_artwork_ids = list(map(lambda x: x.__getitem__(0), expired_records))
 
         logger.debug('%u expired records retrieved from database.' % len(expired_artwork_ids))
 

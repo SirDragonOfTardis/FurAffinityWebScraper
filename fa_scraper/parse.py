@@ -6,10 +6,12 @@ import unicodedata
 from fa_scraper import util
 from fa_scraper.constant import *
 
+from functools import reduce
+
 import logging
+
 logger = logging.getLogger('default')
 
-from functools import reduce
 
 class Parser(object):
     """
@@ -63,7 +65,6 @@ class Parser(object):
         self.bs = BeautifulSoup(html, "html.parser")
         self.url = url
 
-
         self.idMode = id_mode
         self.startId = startingid
         self.stopId = stopId
@@ -86,10 +87,19 @@ class Parser(object):
         url_count = 0
         scrapemode = "newest2pg"
 
+        # for url_type in URL_TYPES:
+        #    # look up directly from regex table
+        #    temp_urls = self.bs.findAll('a', href = Parser.URL_REGEX_TABLE[url_type])
+        #    if temp_urls:
+        #        # use map to get href attribute(url) from matched tag
+        #        temp_urls = list(map(lambda tag: tag.get('href'), temp_urls))
+        #        url_count = url_count + len(temp_urls)
+        #        urls = urls + temp_urls
+
         if self.idMode == 'false':
             gallery_user_folders = self.bs.findAll('ul', {"class": "default-group"})
 
-            #adds user gallery and scraps from a watch list
+            # adds user gallery and scraps from a watch list
             if '/watchlist/' in self.url:
                 temp_users = self.bs.findAll('a')
                 temp_users_list = list(map(lambda tag: tag.get('href'), temp_users))
@@ -107,7 +117,7 @@ class Parser(object):
                         temp_users_list = temp_resume
                         url_count = url_count + (len(temp_users_list) - (temp_resume_index + 1)) * 2
                     else:
-                        logger.debug("The user specified was not found.")
+                        logger.error("The user specified was not found.")
                 else:
                     url_count = url_count + len(temp_users_list)*2
 
@@ -134,10 +144,12 @@ class Parser(object):
 
             # adds single view page that is start url
             if '/view/' in self.url:
+                                                                           
                 url_count = url_count + 1
                 temp_view_url = self.url.replace('https://www.furaffinity.net','')
+                                                                   
                 urls.append(temp_view_url)
-
+            
             # adds next page url
             new_submissions_nextpage = self.bs.findAll('a', {"class": "more"})
             if new_submissions_nextpage:
@@ -226,11 +238,13 @@ class Parser(object):
 
         else:
             logger.error('idMode is neither true or false.')
+            
         return urls
+
 
 class ArtworkParser(Parser):
     """
-    ArtworkParser class inherit from Parser and parse information from a artwork
+    ArtworkParser class inherit from Parser and parse information from an artwork
 website.
 
     Attributes:
@@ -242,14 +256,14 @@ website.
     """
     ARTWORK_ATTRIBUTES = ['Category', 'Theme', 'Species', 'Gender', 'Favorites',
                           'Comments', 'Views', 'Resolution', 'Keywords', 'Author',
-                          'Name', 'Adult'] # attributes used by regex table and tag table
-    INT_ATTRIBUTES = set(['Views', 'Comments', 'Favorites'])
-    # attributes needs to be convert to int
+                          'Name', 'Adult']  # attributes used by regex table and tag table
+    INT_ATTRIBUTES = {'Views', 'Comments', 'Favorites'}
+    # attributes needs to be converted to int
 
-    REGEX_TABLE = {} # compiled regex table
-    TAG_TABLE = {} # tag table
+    REGEX_TABLE = {}  # compiled regex table
+    TAG_TABLE = {}  # tag table
 
-    FILENAME_EXTENSION_REGEX = re.compile('.*\.(.+)') # compiled regex to get file extension from download url
+    FILENAME_EXTENSION_REGEX = re.compile('.*\.(.+)')  # compiled regex to get file extension from download url
 
     @classmethod
     def generate_regex_table(cls):
@@ -266,9 +280,9 @@ website.
             regex_table[attribute] = re.compile('<b>' + attribute + ':</b>\s*(.+?)\s*<br/>')
 
         # keywords author name uses different regexes
-        regex_table.update({'Keywords'  : re.compile('<a href=".*">(.+?)</a>'),
-                            'Author'    : re.compile('<a href=".*">(.+)</a>'),
-                            'Name'      : re.compile('<b>(.+)</b>')})
+        regex_table.update({'Keywords': re.compile('<a href=".*">(.+?)</a>'),
+                            'Author': re.compile('<a href=".*">(.+)</a>'),
+                            'Name': re.compile('<b>(.+)</b>')})
 
         logger.debug('artwork parser\'s regex table(stores compiled regexes for '
                      'extract artwork attribute) generated.')
@@ -288,9 +302,9 @@ website.
             tag_table[attribute] = 'stats_tag'
 
         # keywords author name uses different tags
-        tag_table.update({'Name'        : 'cat_tag',
-                          'Author'      : 'cat_tag',
-                          'Keywords'    : 'keywords_tag'})
+        tag_table.update({'Name': 'cat_tag',
+                          'Author': 'cat_tag',
+                          'Keywords': 'keywords_tag'})
 
         logger.debug('artwork parser\'s tag table(stores tag name each attribute '
                      'uses) generated.')
@@ -333,13 +347,10 @@ website.
         super(ArtworkParser, self).__init__(html, url)
         # parse tags
         self.parse_tags()
-
         self.idMode = id_mode
         self.startId = startingid
         self.stopId = stopId
-
         logger.debug('artwork parser initialized.')
-
 
     def get_download_link(self):
         """
@@ -349,24 +360,24 @@ website.
             self - instance of class ArtworkParser
 
         Returns:
-            download_link - the download link of artwork, '' if cannot get
+            download_link - the download link of artwork, '' if it cannot get it
         """
         try:
             download_link = ''
             image_tag = self.bs.find('img', {'id': 'submissionImg'})
-            object_tag = self.bs.find('object', {'id':'flash_embed'})
+            object_tag = self.bs.find('object', {'id': 'flash_embed'})
             if image_tag and image_tag.has_attr('src'):
                 download_link = 'https:' + image_tag['src']
-                logger.info('retrieved download link - "%s"' % download_link)
+                logger.info('retrieved download link - "%s".' % download_link)
             # looks for .swf
             elif object_tag and object_tag.has_attr('data'):
                 download_link = 'https:' + object_tag['data']
-                logger.info('retrieved download link - "%s"' % download_link)
+                logger.info('retrieved download link - "%s".' % download_link)
             else:
-                logger.info('unable to retrieve download link.')
+                logger.error('unable to retrieve download link.')
             return download_link
         except:
-            logger.info('unable to retrieve download link.')
+            logger.error('unable to retrieve download link.')
 
     def get_alt_and_description(self):
         """
@@ -400,32 +411,36 @@ website.
                 return False
         except:
             return False
+
     def get_alt_download_link(self):
         """
         Get download link from the download link in view page.
         """
         try:
             download_not_tag = self.bs.find('a', text='Download')
-            download_link = 'https:' +  download_not_tag['href']
+            download_link = 'https:' + download_not_tag['href']
             return download_link
         except:
-            logger.info('unable to retrieve download link.')
+            logger.error('unable to retrieve download link.')
 
     def get_filename(self):
         """
         Gets filename to save the post as.
         """
         try:
-            #temp/default filename format
+            # temp/default filename format
             stats_tag = self.bs.find('td', {'class': 'alt1 stats-container'})
             posted_title = self.get_posted_title()
             posted_time = self.get_posted_time()
-            filename = "%s %s" %(posted_time,posted_title)
-            filename = filename.replace('/'," ,' ")
-            filename = re.sub(r'[\\/*?:"<>|]',"",filename)
+            art_id = self.get_id()
+            
+            # add customization
+            filename = "%s - %s - %s" % (posted_time, art_id, posted_title)
+            filename = filename.replace('/', " ,' ")
+            filename = re.sub(r'[\\/*?:"<>|]', "", filename)
             return filename
-
-            #TODO optional filename format
+            
+            # TODO optional filename format
             temp_name = '%Y-%m-%d_%H-%M {title} by {user}'
 
             # add time
@@ -435,10 +450,10 @@ website.
 
             # insert title
             if '{title}' in temp_name:
-                temp_name = 'poop'
-
+                temp_name = 'temp-name'
         except:
             filename = 'error'
+            return filename
 
     def save_description(self, filename):
         """
@@ -448,7 +463,7 @@ website.
             desc_table = self.bs.findAll('table', {'class': 'maintable'})[1]
             desc = str(desc_table)
             desc = unicodedata.normalize('NFKD', desc)
-            desc = (desc.encode('ascii','ignore')).decode('utf-8')
+            desc = (desc.encode('ascii', 'ignore')).decode('utf-8')
             style = """
                     <link type="text/css" rel="stylesheet" href="../../../css/dark.css" />
                     <link type="text/css" rel="stylesheet" href="../../css/dark.css" />
@@ -464,58 +479,63 @@ website.
                 return True
         except:
             return False
-    
+
     def get_artist(self):
         try:
             td_title_by_artist = self.bs.find('div', {'class': 'classic-submission-title information'})
             artist_url = td_title_by_artist.find('a')
             artist = artist_url.contents[0]
-            return artist
+            artist_string = artist.attrs['title']
+            return artist_string.strip()
         except:
-            #TODO pause on exeption
             return '_user_unknown_'
 
     def get_tag(self, tag):
         try:
-            category = self.bs.find('td', {'class':'alt1 stats-container'})
-            for index, content in enumerate( category.contents, start=0):
+            category = self.bs.find('td', {'class': 'alt1 stats-container'})
+            for index, content in enumerate(category.contents, start=0):
                 if category.contents[index].string == tag:
                     tag_index = index + 1
                     category_tag = category.contents[tag_index].string
                     logger.debug(tag + " " + category_tag)
                     return category_tag
         except:
-            logger.info("Category tag not found.")
+            logger.warning("Category tag not found.")
 
     def get_tag_category(self):
         try:
-            return self.get_tag('Category:')
+            category = self.get_tag('Category:')
+            return category
         except:
-            logger.info("Unable to retrieve Category.")
+            logger.warning("Unable to retrieve Category.")
 
     def get_tag_gender(self):
         try:
-            return self.get_tag('Gender:')
+            gender = self.get_tag('Gender:')
+            return gender
         except:
-            logger.info("Unable to retrieve Gender.")
+            logger.warning("Unable to retrieve Gender.")
 
     def get_tag_resolution(self):
         try:
-            return self.get_tag('Resolution:')
+            resolution = self.get_tag('Resolution:')
+            return resolution
         except:
-            logger.info("Unable to retrieve Resolution.")
+            logger.warning("Unable to retrieve Resolution.")
 
     def get_tag_species(self):
         try:
-            return self.get_tag('Species:')
+            species = self.get_tag('Species:')
+            return species
         except:
-            logger.info("Unable to retrieve Species.")
+            logger.warning("Unable to retrieve Species.")
 
     def get_tag_theme(self):
         try:
-            return self.get_tag('Theme:')
+            theme = self.get_tag('Theme:')
+            return theme
         except:
-            logger.info("Unable to retrieve Theme.")
+            logger.warning("Unable to retrieve Theme.")
 
     def get_id(self):
         try:
@@ -532,7 +552,7 @@ website.
                 logger.debug("post id = " + submissionid)
                 return submissionid
         except:
-            logger.debug("id not returned")
+            logger.error("id not returned")
 
     def get_maturity_rating(self):
         try:
@@ -543,7 +563,7 @@ website.
             logger.debug("Content Rating not found")
             return 'Unknown'
 
-    def get_posted_time(self): # something needs to change
+    def get_posted_time(self):  # something needs to change
         # get posted time from meta content
         try:
             posted_time = self.stats_tag.find('span', {'class': 'popup_date'}).string
@@ -552,20 +572,17 @@ website.
             posted_time = posted_time.strftime("%Y-%m-%d_%H-%M")
             return posted_time
         except:
-            return 
+            return
 
     def get_posted_title(self):
         # get posted time from posted_tag
         # returns "title by artist"
         try:
-            # t is title
-            t = self.bs.find('meta', {'property': 'og:title'})
-            t = t['content']
-            t = unicodedata.normalize('NFKD', t)
-            t = (t.encode('ascii','ignore')).decode('utf-8')
-            return t
+            self.posted_titlename = self.bs.find('meta', {'property': 'og:title'})
+            if self.posted_titlename.has_attr('content'):
+                return self.posted_titlename['content']
         except:
-            logger.info("No title found for post. using '_no title_")
+            logger.error("No title found for post. using '_no title_")
             return '_no title_'
 
     @staticmethod
@@ -577,18 +594,18 @@ website.
 
     @staticmethod
     def format_resolution(resolution):
-        # convert from resolution like "1920x1080" to a attribute dictionary
+        # convert from resolution like "1920x1080" to an attribute dictionary
         resolution = resolution.split('x')
         if len(resolution) >= 2:
             # convert string to int here
-            formatted_resolution = {'Width'     : int(resolution[0]),
-                                    'Height'    : int(resolution[1])}
+            formatted_resolution = {'Width': int(resolution[0]),
+                                    'Height': int(resolution[1])}
             return formatted_resolution
-            
+
     @staticmethod
     def combine_keywords(keywords):
         # use reduce to combine all keywords to a string seperate by space
-        return reduce(lambda x, y : x + ' ' + y, keywords)
+        return reduce(lambda x, y: x + ' ' + y, keywords)
 
     @staticmethod
     def generate_unparsed_attributes_log(unparsed_attributes):
@@ -597,7 +614,7 @@ website.
         unparsed_attributes = list(unparsed_attributes)
         if unparsed_attributes:
             # use reduce to combine all attributes together seperate by space
-            return 'unparsed attributes: ' + reduce(lambda x, y : x + ' ' + y, unparsed_attributes) + '.'
+            return 'unparsed attributes: ' + reduce(lambda x, y: x + ' ' + y, unparsed_attributes) + '.'
         else:
             return 'all attributes parsed.'
 
@@ -631,7 +648,7 @@ website.
             posted_time = self.posted_tag
             if posted_time:
                 # parse posted time and format it to string that will
-                # recognized by sqlite
+                # be recognized by sqlite
                 posted_time = util.parse_datetime(posted_time)
                 attributes['Posted'] = posted_time.strftime("%Y-%m-%d %H:%M")
             else:
@@ -690,8 +707,8 @@ website.
             if not len(match.group(1)) > 4:
                 return match.group(1)
             else:
-                logger.warning('Did not retrieve filename extention. Using unknown_ext extension. Be sure to check file.')
-                return 'unknown_ext'
+                logger.error('Did not retrieve filename extention. Using JPG extension. Be sure to check file.')
+                return 'jpg'
 
     @staticmethod
     def view_to_full(url):
@@ -711,5 +728,5 @@ website.
             r = int(v)
             return r
         except:
-            logger.debug("number of registered users not returned. using 10,000")
+            logger.warning("number of registered users not returned. using 10,000")
             return 10000
